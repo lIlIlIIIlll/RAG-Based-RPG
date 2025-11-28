@@ -11,7 +11,7 @@ const config = {
   collectionNames: ["fatos", "historico", "conceitos"],
 
   // Limite de palavras para o histórico curto (janela de contexto)
-  historyWordLimit: 40000,
+  historyWordLimit: 30000,
 
   // Limite de palavras para a memória vetorial recuperada a cada turno.
   vectorMemoryWordLimit: 25000,

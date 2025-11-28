@@ -357,6 +357,201 @@ async function handleChatGeneration(
 
   // --- ETAPA 2: Embedding do contexto ---
   const previousMemoryText = previousVectorMemory.map((mem) => mem.text).join("\n");
+  return await chatStorage.getAllChats(userId);
+}
+
+/**
+ * Deleta um chat completo (Tabelas + Metadados).
+ * @param {string} chatToken 
+ */
+async function deleteChat(chatToken) {
+  console.log(`[Service] Deletando chat: ${chatToken}`);
+  // 1. Remove do disco
+  await chatStorage.deleteChatMetadata(chatToken);
+  // 2. Remove do LanceDB
+  await lanceDBService.deleteChatTables(chatToken);
+}
+
+/**
+ * Atualiza as configurações de um chat.
+ * @param {string} chatToken 
+ * @param {object} newConfig 
+ */
+async function updateChatConfig(chatToken, newConfig) {
+  console.log(`[Service] Atualizando config do chat ${chatToken}...`);
+  return await chatStorage.updateChatConfig(chatToken, newConfig);
+}
+
+/**
+ * Retorna os metadados de um chat específico.
+ */
+async function getChatDetails(chatToken) {
+  return await chatStorage.getChatMetadata(chatToken);
+}
+
+/**
+ * Recupera o histórico completo de mensagens de um chat.
+ * @param {string} chatToken 
+ * @returns {Promise<Array>}
+ */
+async function getChatHistory(chatToken) {
+  console.log(`[Service] Recuperando histórico completo para: ${chatToken}`);
+  const history = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
+  return history;
+}
+
+/**
+ * Helper para obter API Key do chat
+ */
+async function getChatApiKey(chatToken) {
+  const meta = await chatStorage.getChatMetadata(chatToken);
+  return meta?.config?.apiKey;
+}
+
+/**
+ * Adiciona uma mensagem a uma coleção.
+ */
+async function addMessage(chatToken, collectionName, text, role = "user", attachments = [], apiKey = null) {
+  console.log(
+    `[Service] Adicionando mensagem à coleção '${collectionName}' com role=${role}.`
+  );
+
+  if (!apiKey) {
+    apiKey = await getChatApiKey(chatToken);
+  }
+
+  if (!apiKey) {
+    console.warn("[Service] API Key não encontrada para gerar embedding. Tentando inserir sem vetor (pode falhar se DB exigir).");
+    // Se não tiver key, não gera embedding. O LanceDB pode reclamar se o schema exigir vetor.
+    // Assumindo que o schema exige, vamos lançar erro para forçar o usuário a configurar.
+    throw new Error("API Key necessária para salvar mensagem (geração de embedding). Configure no chat.");
+  }
+
+  const vector = await geminiService.generateEmbedding(text, apiKey);
+  const messageid = uuidv4();
+
+  const record = {
+    text,
+    vector,
+    messageid,
+    role,
+    createdAt: Date.now(),
+    attachments: JSON.stringify(attachments)
+  };
+  await lanceDBService.insertRecord(chatToken, collectionName, record);
+  return messageid;
+}
+
+/**
+ * Edita uma mensagem existente.
+ */
+async function editMessage(chatToken, messageid, newContent) {
+  console.log(`[Service] Editando mensagem com id: ${messageid} `);
+
+  const apiKey = await getChatApiKey(chatToken);
+  if (!apiKey) {
+    throw new Error("API Key necessária para editar mensagem.");
+  }
+
+  const newVector = await geminiService.generateEmbedding(newContent, apiKey);
+  const wasUpdated = await lanceDBService.updateRecordByMessageId(
+    chatToken,
+    messageid,
+    newContent,
+    newVector
+  );
+  return wasUpdated;
+}
+
+/**
+ * Deleta uma mensagem específica.
+ */
+async function deleteMessage(chatToken, messageid) {
+  console.log(`[Service] Deletando mensagem ID: ${messageid} `);
+  return await lanceDBService.deleteRecordByMessageId(chatToken, messageid);
+}
+
+/**
+ * Busca por mensagens semanticamente similares.
+ */
+async function searchMessages(chatToken, collectionName, queryVector) {
+  console.log(
+    `[Service] Buscando na coleção '${collectionName}' usando vetor direto.`
+  );
+  const results = await lanceDBService.searchByVector(
+    chatToken,
+    collectionName,
+    queryVector
+  );
+
+  // Injeta a categoria (nome da coleção) nos resultados
+  return results.map(item => ({ ...item, category: collectionName }));
+}
+
+/**
+ * Orquestra a geração de uma resposta de IA usando RAG.
+ * Agora suporta configurações dinâmicas por chat e Function Calling.
+ */
+async function handleChatGeneration(
+  chatToken,
+  userMessage,
+  previousVectorMemory = [],
+  files = []
+) {
+  // --- ETAPA 0: Carregar Configurações do Chat ---
+  const chatMetadata = await chatStorage.getChatMetadata(chatToken);
+
+  // Fallback para configs globais se não encontrar metadados
+  const chatConfig = chatMetadata?.config || {
+    modelName: "gemini-2.5-flash",
+    temperature: 0.7,
+    systemInstruction: config.systemInstructionTemplate,
+    apiKey: ""
+  };
+
+  const apiKey = chatConfig.apiKey;
+  if (!apiKey) {
+    throw new Error("API Key não configurada para este chat. Por favor, adicione nas configurações.");
+  }
+
+  // --- ETAPA 1: Salvar mensagem do usuário no histórico ---
+  const attachments = files.map(file => {
+    // Salvar arquivo no disco para preview
+    try {
+      const uploadDir = path.join(__dirname, "../../uploads");
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filePath = path.join(uploadDir, file.originalname);
+      fs.writeFileSync(filePath, file.buffer);
+      console.log(`[Service] Arquivo salvo em: ${filePath}`);
+    } catch (err) {
+      console.error("[Service] Erro ao salvar arquivo no disco:", err);
+    }
+
+    return {
+      mimeType: file.mimetype,
+      data: file.buffer.toString("base64")
+    };
+  });
+
+  await addMessage(chatToken, "historico", userMessage, "user", attachments, apiKey);
+
+  const fullHistoryRecords = await lanceDBService.getAllRecordsFromCollection(
+    chatToken,
+    "historico"
+  );
+
+  const {
+    limitedHistory: conversationHistory,
+    wordCount: conversationWordCount,
+  } = getHistoryWithWordLimit(fullHistoryRecords, config.historyWordLimit);
+
+  const historyText = conversationHistory.map((msg) => msg.text).join("\n");
+  const shortHistoryIds = new Set(conversationHistory.map((msg) => msg.messageid));
+
+  // --- ETAPA 2: Embedding do contexto ---
+  const previousMemoryText = previousVectorMemory.map((mem) => mem.text).join("\n");
   const contextForVectorQuery = previousMemoryText + "\n\n" + historyText;
 
   console.log("[Service] Gerando embedding para busca vetorial...");
@@ -370,26 +565,31 @@ async function handleChatGeneration(
   const searchResultsArrays = await Promise.all(searchPromises);
   let combinedResults = [].concat(...searchResultsArrays);
 
-  // Remove itens que já estão no histórico curto
-  combinedResults = combinedResults.filter(
-    (item) => !shortHistoryIds.has(item.messageid)
-  );
-
   // --- ETAPA 4: Construir Memória Vetorial ---
   combinedResults.sort((a, b) => b._score - a._score);
+
+  // Deduplicar resultados
   const uniqueResults = Array.from(
     new Map(combinedResults.map((item) => [item.text, item])).values()
   );
 
-  let newVectorMemory = [];
+  // 4.1 Memória para Exibição (UI) - Retorna os Top 20 relevantes, SEM filtrar pelo histórico recente
+  const displayMemory = uniqueResults.slice(0, 20);
+
+  // 4.2 Memória para o Prompt (LLM) - Filtra o que já está no histórico recente e aplica limite de palavras
+  const filteredForPrompt = uniqueResults.filter(
+    (item) => !shortHistoryIds.has(item.messageid)
+  );
+
+  let promptMemory = [];
   let newVectorMemoryText = "";
   let memoryWordCount = 0;
   const wordCounter = (text) => (text ? text.trim().split(/\s+/).length : 0);
 
-  for (const result of uniqueResults) {
+  for (const result of filteredForPrompt) {
     const wordsInResult = wordCounter(result.text);
     if (memoryWordCount + wordsInResult <= config.vectorMemoryWordLimit) {
-      newVectorMemory.push(result);
+      promptMemory.push(result);
       newVectorMemoryText += `${result.text} \n-- -\n`;
       memoryWordCount += wordsInResult;
     } else {
@@ -425,7 +625,6 @@ async function handleChatGeneration(
     return {
       role: record.role || "user",
       parts: parts,
-      // parts: [{ text: record.text }], // Simplificação se não houver anexos
     };
   });
 
@@ -588,10 +787,10 @@ async function handleChatGeneration(
   }
 
   return {
-    modelResponse, // Mantém compatibilidade, mas o frontend deve olhar o history
+    modelResponse,
     history: conversationHistory.concat(generatedMessages),
-    wordCount: conversationWordCount + wordCounter(modelResponse), // Aproximado
-    newVectorMemory,
+    wordCount: conversationWordCount + wordCounter(modelResponse),
+    newVectorMemory: displayMemory,
   };
 }
 

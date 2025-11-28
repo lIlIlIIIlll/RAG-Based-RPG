@@ -1,10 +1,11 @@
 // src/components/ChatWindow.jsx
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
 import Message from "./Message.jsx";
 import LoadingIndicator from "./LoadingIndicator.jsx";
 import FileCard from "./FileCard.jsx";
-import { Send, Paperclip, X } from "lucide-react";
+import { Send, Paperclip } from "lucide-react";
 import styles from "./ChatWindow.module.css";
+import { Virtuoso } from "react-virtuoso";
 
 const ChatWindow = ({
   messages,
@@ -17,17 +18,8 @@ const ChatWindow = ({
 }) => {
   const [inputText, setInputText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
-
-  // Auto-scroll inteligente
-  useEffect(() => {
-    if (messages.length > 0 && messagesEndRef.current) {
-      // block: "nearest" evita que a página inteira role se o container já estiver visível
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [messages, isLoading]);
 
   // Ajusta altura do textarea automaticamente
   const handleInput = (e) => {
@@ -72,33 +64,45 @@ const ChatWindow = ({
 
   return (
     <div className={styles.chatWindow}>
-      <div className={styles.messageList}>
+      <div className={styles.messageList} style={{ display: 'block', overflow: 'hidden', padding: 0 }}>
         {messages.length === 0 ? (
-          <div className={styles.emptyState}>
+          <div className={styles.emptyState} style={{ height: '100%' }}>
             <h2>O que vamos jogar hoje?</h2>
             <p>Este chat possui memória dinâmica e upload de arquivos</p>
           </div>
         ) : (
-          messages.map((msg, index) => (
-            <Message
-              key={msg.messageid || index} // Usa messageid se disponível
-              msg={msg}
-              isLast={index === messages.length - 1}
-              onEdit={onEditMessage}
-              onDelete={onDeleteMessage}
-              onRegenerate={onRegenerate}
-              onPreviewFile={onPreviewFile}
-            />
-          ))
+          <Virtuoso
+            style={{ height: "100%", width: "100%" }}
+            data={messages}
+            initialTopMostItemIndex={messages.length - 1}
+            followOutput="smooth"
+            itemContent={(index, msg) => (
+              <div style={{ padding: "0 40px 24px 40px" }}>
+                <Message
+                  key={msg.messageid || index}
+                  msg={msg}
+                  isLast={index === messages.length - 1}
+                  onEdit={onEditMessage}
+                  onDelete={onDeleteMessage}
+                  onRegenerate={onRegenerate}
+                  onPreviewFile={onPreviewFile}
+                />
+              </div>
+            )}
+            components={{
+              Header: () => <div style={{ height: "40px" }} />,
+              Footer: () => (
+                <div style={{ paddingBottom: "120px", paddingLeft: "40px", paddingRight: "40px" }}>
+                  {isLoading && (
+                    <div className={styles.loadingContainer}>
+                      <LoadingIndicator />
+                    </div>
+                  )}
+                </div>
+              ),
+            }}
+          />
         )}
-
-        {isLoading && (
-          <div className={styles.loadingContainer}>
-            <LoadingIndicator />
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       <div className={styles.inputArea}>

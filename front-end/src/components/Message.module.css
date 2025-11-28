@@ -101,6 +101,9 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
+.markdownBody p {
+  margin-bottom: 12px;
+}
 
 .markdownBody p:last-child {
   margin-bottom: 0;
@@ -164,62 +167,89 @@
   gap: 12px;
   width: 100%;
   min-width: 400px;
-  background: #111;
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(10px);
   padding: 16px;
-  border-radius: 12px;
-  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .editTextarea {
   width: 100%;
-  min-height: 100px;
-  background: #050505;
-  border: 1px solid var(--border-subtle);
+  min-height: 60px;
+  background: transparent;
+  border: none;
   color: #fff;
-  padding: 12px;
-  border-radius: 8px;
+  padding: 8px;
   font-family: inherit;
-  resize: vertical;
+  font-size: 1rem;
+  line-height: 1.6;
+  resize: none;
+  /* Auto-resize via JS */
   outline: none;
+  overflow: hidden;
 }
 
 .editTextarea:focus {
-  border-color: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
 }
 
 .editActions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .saveBtn,
 .cancelBtn {
-  padding: 8px 16px;
+  padding: 8px 20px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   border: none;
-  font-weight: 500;
-  transition: all 0.2s;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .saveBtn {
-  background: var(--accent-primary);
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-dim) 100%);
   color: #000;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.2);
 }
 
 .saveBtn:hover {
-  background: var(--accent-dim);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.3);
 }
 
 .cancelBtn {
-  background: #222;
-  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .cancelBtn:hover {
-  background: #333;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 /* Menu de Ações (Floating) */

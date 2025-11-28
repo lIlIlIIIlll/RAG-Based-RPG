@@ -1,6 +1,7 @@
 // src/components/Message.jsx
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import { User, Bot, Copy, Edit2, Trash2, RefreshCw, Check } from "lucide-react";
 import FileCard from "./FileCard.jsx";
 import DiceResult from "./DiceResult.jsx";
@@ -20,6 +21,15 @@ const Message = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
   const [copied, setCopied] = useState(false);
+  const textareaRef = useRef(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
+    }
+  }, [editText, isEditing]);
 
   // Extrai arquivos do texto e limpa o texto para exibição
   const { cleanText, files } = useMemo(() => {
@@ -33,8 +43,18 @@ const Message = ({
     }
 
     // Remove as linhas de arquivo do texto para exibição
-    // Remove também quebras de linha extras que possam ter ficado
-    const newText = text.replace(fileRegex, "").trim();
+    let newText = text.replace(fileRegex, "").trim();
+
+    // Função para preservar blocos de código e transformar quebras de linha em parágrafos no resto
+    const splitByCode = newText.split(/(```[\s\S]*?```)/g);
+    newText = splitByCode.map(part => {
+      // Se for bloco de código, retorna como está
+      if (part.startsWith("```") && part.endsWith("```")) {
+        return part;
+      }
+      // Se for texto normal, substitui \n por \n\n para criar parágrafos
+      return part.replace(/\n/g, "\n\n");
+    }).join("");
 
     return { cleanText: newText, files: foundFiles };
   }, [text]);
@@ -131,10 +151,12 @@ const Message = ({
           {isEditing ? (
             <div className={styles.editContainer}>
               <textarea
+                ref={textareaRef}
                 className={styles.editTextarea}
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
                 autoFocus
+                rows={1}
               />
               <div className={styles.editActions}>
                 <button onClick={() => setIsEditing(false)} className={styles.cancelBtn}>Cancelar</button>
@@ -146,7 +168,7 @@ const Message = ({
               {isDiceRoll ? (
                 <DiceResult resultString={cleanText} />
               ) : (
-                <ReactMarkdown>{cleanText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkBreaks]}>{cleanText}</ReactMarkdown>
               )}
             </div>
           )}

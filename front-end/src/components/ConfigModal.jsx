@@ -7,7 +7,7 @@ import styles from "./ConfigModal.module.css";
 
 const ConfigModal = ({ chatToken, onClose }) => {
   const [config, setConfig] = useState({
-    modelName: "gemini-2.5-flash",
+    modelName: "gemini-2.5-pro",
     temperature: 0.7,
     systemInstruction: "",
     apiKey: "",
@@ -24,7 +24,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
         const currentConfig = response.data.config || {};
 
         setConfig({
-          modelName: currentConfig.modelName || "gemini-2.5-flash",
+          modelName: currentConfig.modelName || "gemini-2.5-pro",
           temperature: currentConfig.temperature ?? 0.7,
           systemInstruction: currentConfig.systemInstruction || "",
           apiKey: currentConfig.apiKey || "",
