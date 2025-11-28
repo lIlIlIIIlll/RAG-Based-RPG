@@ -116,33 +116,37 @@ async function createChat(userId) {
  * Importa um chat a partir de uma lista de mensagens.
  * @param {string} userId - ID do usuário.
  * @param {Array} messages - Lista de mensagens { role, text }.
+ * @param {string} apiKey - Chave da API Gemini (opcional, mas recomendada).
  * @returns {Promise<string>} O chatToken do novo chat.
  */
-async function importChat(userId, messages) {
+async function importChat(userId, messages, apiKey = "") {
   console.log(`[Service] Importando chat para user: ${userId} com ${messages.length} mensagens.`);
 
   // 1. Cria o chat
   const chatToken = await createChat(userId);
 
-  // 2. Adiciona as mensagens sequencialmente
-  // NOTA: Isso pode falhar se não houver API Key configurada, pois addMessage tenta gerar embedding.
-  // Como é importação, talvez devêssemos pular embedding se falhar?
-  // Por enquanto, deixamos falhar se não tiver key, mas o usuário acabou de criar, então não tem key.
-  // TODO: Melhorar fluxo de importação para lidar com falta de key (talvez gerar embeddings depois).
+  // 2. Se houver API Key, salva nas configurações
+  if (apiKey) {
+    const metadata = await chatStorage.getChatMetadata(chatToken);
+    if (metadata) {
+      metadata.config.apiKey = apiKey;
+      await chatStorage.saveChatMetadata(chatToken, metadata, userId);
+    }
+  }
+
+  // 3. Adiciona as mensagens sequencialmente
   for (const msg of messages) {
     if (msg.role && msg.text) {
       try {
-        await addMessage(chatToken, "historico", msg.text, msg.role);
+        // Passa a apiKey para addMessage, que agora pode gerar embeddings
+        await addMessage(chatToken, "historico", msg.text, msg.role, [], apiKey);
       } catch (e) {
-        console.warn(`[Service] Falha ao adicionar mensagem na importação (provável falta de API Key): ${e.message}`);
-        // Fallback: Inserir sem vetor? O LanceDB exige vetor? Se sim, estamos bloqueados.
-        // Se o LanceDB permitir vetor nulo/vazio, poderíamos tentar.
-        // Mas o ideal é o usuário configurar a chave antes de usar.
+        console.warn(`[Service] Falha ao adicionar mensagem na importação: ${e.message}`);
       }
     }
   }
 
-  // 3. Atualiza o título com base na primeira mensagem do usuário (se houver)
+  // 4. Atualiza o título com base na primeira mensagem do usuário (se houver)
   const firstUserMsg = messages.find(m => m.role === 'user');
   if (firstUserMsg) {
     const newTitle = firstUserMsg.text.substring(0, 30) + "...";

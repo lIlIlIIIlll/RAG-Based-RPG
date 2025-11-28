@@ -67,13 +67,14 @@ export const createChat = async () => {
 /**
  * Importa um chat a partir de uma lista de mensagens.
  * @param {Array} messages - Lista de mensagens { role, text }.
+ * @param {string} apiKey - Chave da API Gemini.
  * @returns {Promise<string>} O chatToken do novo chat.
  */
-export const importChat = async (messages) => {
+export const importChat = async (messages, apiKey) => {
   const CONTEXT = "API:IMPORT_CHAT";
   try {
     log(CONTEXT, "Iniciando importação de chat...");
-    const response = await apiClient.post("/chat/import", { messages });
+    const response = await apiClient.post("/chat/import", { messages, apiKey });
     const { chatToken } = response.data;
     log(CONTEXT, `SUCESSO: Chat importado com token: ${chatToken}`);
     return chatToken;

@@ -54,13 +54,13 @@ async function createChat(req, res, next) {
 async function importChat(req, res, next) {
   try {
     const userId = req.user ? req.user.id : null;
-    const { messages } = req.body;
+    const { messages, apiKey } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "O campo 'messages' deve ser um array." });
     }
 
-    const chatToken = await chatService.importChat(userId, messages);
+    const chatToken = await chatService.importChat(userId, messages, apiKey);
     res.status(201).json({ message: "Chat importado com sucesso!", chatToken });
   } catch (error) {
     next(error);
