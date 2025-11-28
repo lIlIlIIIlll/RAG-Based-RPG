@@ -2,18 +2,6 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const config = require("../config");
 
-// --- Inicialização dos Modelos ---
-
-// Instância principal da IA Generativa
-const genAI = new GoogleGenerativeAI(config.geminiApiKey);
-
-// Modelo para gerar embeddings (vetores)
-// Mantemos fixo para garantir consistência na busca vetorial
-const embeddingModel = genAI.getGenerativeModel({
-  model: "text-embedding-004",
-});
-console.log("[Gemini] Modelo de embedding (text-embedding-004) inicializado.");
-
 // --- Helper de Retry ---
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -46,12 +34,30 @@ async function retryOperation(operation, operationName, maxRetries = 3) {
 }
 
 /**
+ * Obtém uma instância do cliente Gemini com a chave fornecida.
+ * @param {string} apiKey 
+ * @returns {GoogleGenerativeAI}
+ */
+function getClient(apiKey) {
+  if (!apiKey) {
+    throw new Error("API Key do Gemini não fornecida.");
+  }
+  return new GoogleGenerativeAI(apiKey);
+}
+
+/**
  * @param {string} text - O texto a ser convertido em embedding.
+ * @param {string} apiKey - A chave de API a ser usada.
  * @returns {Promise<number[]>} O vetor de embedding.
  */
-async function generateEmbedding(text) {
+async function generateEmbedding(text, apiKey) {
   return retryOperation(async () => {
     try {
+      const genAI = getClient(apiKey);
+      const embeddingModel = genAI.getGenerativeModel({
+        model: "text-embedding-004",
+      });
+
       // Limita log para não poluir
       const snippet = text ? text.substring(0, 50) : "";
       // console.log(`[Gemini] Gerando embedding para: "${snippet}..."`); // Comentado para reduzir ruído em retries
@@ -68,12 +74,15 @@ async function generateEmbedding(text) {
 /**
  * (Opcional) Gera uma query de busca textual otimizada.
  * Usa o modelo padrão leve para essa tarefa auxiliar.
+ * @param {string} contextText
+ * @param {string} apiKey
  */
-async function generateSearchQuery(contextText) {
+async function generateSearchQuery(contextText, apiKey) {
   try {
     return await retryOperation(async () => {
       console.log(`[Gemini] Gerando query de busca a partir do contexto...`);
 
+      const genAI = getClient(apiKey);
       // Usa um modelo leve para tarefas auxiliares
       const auxModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
@@ -102,7 +111,7 @@ async function generateSearchQuery(contextText) {
  * 
  * @param {object[]} history - Histórico completo formatado pra API do Gemini.
  * @param {string} systemInstruction - Instrução de sistema.
- * @param {object} generationOptions - { modelName, temperature, tools }
+ * @param {object} generationOptions - { modelName, temperature, tools, apiKey }
  * @returns {Promise<{text: string, functionCalls: object[]}>} Objeto com texto e chamadas de função.
  */
 async function generateChatResponse(history, systemInstruction, generationOptions = {}) {
@@ -112,6 +121,9 @@ async function generateChatResponse(history, systemInstruction, generationOption
       const modelName = generationOptions.modelName || "gemini-2.5-flash";
       const temperature = generationOptions.temperature ?? 0.7;
       const tools = generationOptions.tools || [];
+      const apiKey = generationOptions.apiKey;
+
+      const genAI = getClient(apiKey);
 
       console.log(
         `[Gemini] Gerando resposta. Modelo: ${modelName} | Temp: ${temperature} | Msgs: ${history.length} | Tools: ${tools.length}`
@@ -191,12 +203,14 @@ async function generateChatResponse(history, systemInstruction, generationOption
 /**
  * Gera uma imagem a partir de um prompt de texto.
  * @param {string} prompt - A descrição da imagem.
+ * @param {string} apiKey - A chave de API a ser usada.
  * @returns {Promise<string>} A imagem em base64.
  */
-async function generateImage(prompt) {
+async function generateImage(prompt, apiKey) {
   return retryOperation(async () => {
     try {
       console.log(`[Gemini] Gerando imagem para: "${prompt}"`);
+      const genAI = getClient(apiKey);
       const imageModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
 
       const result = await imageModel.generateContent(prompt);

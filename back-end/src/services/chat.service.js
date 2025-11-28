@@ -103,6 +103,7 @@ async function createChat(userId) {
       modelName: "gemini-2.5-flash",
       temperature: 0.7,
       systemInstruction: config.systemInstructionTemplate,
+      apiKey: "", // Inicializa vazio
     },
   };
 
@@ -124,9 +125,20 @@ async function importChat(userId, messages) {
   const chatToken = await createChat(userId);
 
   // 2. Adiciona as mensagens sequencialmente
+  // NOTA: Isso pode falhar se não houver API Key configurada, pois addMessage tenta gerar embedding.
+  // Como é importação, talvez devêssemos pular embedding se falhar?
+  // Por enquanto, deixamos falhar se não tiver key, mas o usuário acabou de criar, então não tem key.
+  // TODO: Melhorar fluxo de importação para lidar com falta de key (talvez gerar embeddings depois).
   for (const msg of messages) {
     if (msg.role && msg.text) {
-      await addMessage(chatToken, "historico", msg.text, msg.role);
+      try {
+        await addMessage(chatToken, "historico", msg.text, msg.role);
+      } catch (e) {
+        console.warn(`[Service] Falha ao adicionar mensagem na importação (provável falta de API Key): ${e.message}`);
+        // Fallback: Inserir sem vetor? O LanceDB exige vetor? Se sim, estamos bloqueados.
+        // Se o LanceDB permitir vetor nulo/vazio, poderíamos tentar.
+        // Mas o ideal é o usuário configurar a chave antes de usar.
+      }
     }
   }
 
@@ -190,13 +202,33 @@ async function getChatHistory(chatToken) {
 }
 
 /**
+ * Helper para obter API Key do chat
+ */
+async function getChatApiKey(chatToken) {
+  const meta = await chatStorage.getChatMetadata(chatToken);
+  return meta?.config?.apiKey;
+}
+
+/**
  * Adiciona uma mensagem a uma coleção.
  */
-async function addMessage(chatToken, collectionName, text, role = "user", attachments = []) {
+async function addMessage(chatToken, collectionName, text, role = "user", attachments = [], apiKey = null) {
   console.log(
     `[Service] Adicionando mensagem à coleção '${collectionName}' com role=${role}.`
   );
-  const vector = await geminiService.generateEmbedding(text);
+
+  if (!apiKey) {
+    apiKey = await getChatApiKey(chatToken);
+  }
+
+  if (!apiKey) {
+    console.warn("[Service] API Key não encontrada para gerar embedding. Tentando inserir sem vetor (pode falhar se DB exigir).");
+    // Se não tiver key, não gera embedding. O LanceDB pode reclamar se o schema exigir vetor.
+    // Assumindo que o schema exige, vamos lançar erro para forçar o usuário a configurar.
+    throw new Error("API Key necessária para salvar mensagem (geração de embedding). Configure no chat.");
+  }
+
+  const vector = await geminiService.generateEmbedding(text, apiKey);
   const messageid = uuidv4();
 
   const record = {
@@ -216,7 +248,13 @@ async function addMessage(chatToken, collectionName, text, role = "user", attach
  */
 async function editMessage(chatToken, messageid, newContent) {
   console.log(`[Service] Editando mensagem com id: ${messageid} `);
-  const newVector = await geminiService.generateEmbedding(newContent);
+
+  const apiKey = await getChatApiKey(chatToken);
+  if (!apiKey) {
+    throw new Error("API Key necessária para editar mensagem.");
+  }
+
+  const newVector = await geminiService.generateEmbedding(newContent, apiKey);
   const wasUpdated = await lanceDBService.updateRecordByMessageId(
     chatToken,
     messageid,
@@ -268,8 +306,14 @@ async function handleChatGeneration(
   const chatConfig = chatMetadata?.config || {
     modelName: "gemini-2.5-flash",
     temperature: 0.7,
-    systemInstruction: config.systemInstructionTemplate
+    systemInstruction: config.systemInstructionTemplate,
+    apiKey: ""
   };
+
+  const apiKey = chatConfig.apiKey;
+  if (!apiKey) {
+    throw new Error("API Key não configurada para este chat. Por favor, adicione nas configurações.");
+  }
 
   // --- ETAPA 1: Salvar mensagem do usuário no histórico ---
   const attachments = files.map(file => {
@@ -292,7 +336,7 @@ async function handleChatGeneration(
     };
   });
 
-  await addMessage(chatToken, "historico", userMessage, "user", attachments);
+  await addMessage(chatToken, "historico", userMessage, "user", attachments, apiKey);
 
   const fullHistoryRecords = await lanceDBService.getAllRecordsFromCollection(
     chatToken,
@@ -312,7 +356,7 @@ async function handleChatGeneration(
   const contextForVectorQuery = previousMemoryText + "\n\n" + historyText;
 
   console.log("[Service] Gerando embedding para busca vetorial...");
-  const vectorQuery = await geminiService.generateEmbedding(contextForVectorQuery);
+  const vectorQuery = await geminiService.generateEmbedding(contextForVectorQuery, apiKey);
 
   // --- ETAPA 3: Busca vetorial ---
   const searchPromises = config.collectionNames.map((collectionName) =>
@@ -385,7 +429,8 @@ async function handleChatGeneration(
   const generationConfig = {
     modelName: chatConfig.modelName,
     temperature: chatConfig.temperature,
-    tools: tools // Injeta as ferramentas
+    tools: tools, // Injeta as ferramentas
+    apiKey: apiKey // Passa a API Key
   };
 
   let finalModelResponseText = "";
@@ -430,10 +475,10 @@ async function handleChatGeneration(
 
       try {
         if (name === "insert_fact") {
-          await addMessage(chatToken, "fatos", args.text, "model");
+          await addMessage(chatToken, "fatos", args.text, "model", [], apiKey);
           result = { status: "success", message: "Fato inserido com sucesso." };
         } else if (name === "insert_concept") {
-          await addMessage(chatToken, "conceitos", args.text, "model");
+          await addMessage(chatToken, "conceitos", args.text, "model", [], apiKey);
           result = { status: "success", message: "Conceito inserido com sucesso." };
         } else if (name === "roll_dice") {
           // Lógica de rolagem no backend
@@ -467,7 +512,7 @@ async function handleChatGeneration(
           const resultText = `${count}d${type}${modString} = ${finalTotal} { ${rollString} }`;
 
           // PERSISTE O RESULTADO COMO MENSAGEM VISÍVEL
-          const rollMsgId = await addMessage(chatToken, "historico", resultText, "model");
+          const rollMsgId = await addMessage(chatToken, "historico", resultText, "model", [], apiKey);
 
           generatedMessages.push({
             text: resultText,
@@ -478,13 +523,13 @@ async function handleChatGeneration(
 
           result = { result: resultText };
         } else if (name === "generate_image") {
-          const base64Image = await geminiService.generateImage(args.prompt);
+          const base64Image = await geminiService.generateImage(args.prompt, apiKey);
           const attachments = [{
             mimeType: "image/png",
             data: base64Image
           }];
 
-          const imgMsgId = await addMessage(chatToken, "historico", `Imagem gerada: ${args.prompt}`, "model", attachments);
+          const imgMsgId = await addMessage(chatToken, "historico", `Imagem gerada: ${args.prompt}`, "model", attachments, apiKey);
 
           generatedMessages.push({
             text: `Imagem gerada: ${args.prompt}`,
@@ -520,7 +565,7 @@ async function handleChatGeneration(
   // --- ETAPA 7: Salvar resposta final ---
   const modelResponse = finalModelResponseText || "Desculpe, não consegui processar sua solicitação.";
 
-  const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model");
+  const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model", [], apiKey);
 
   generatedMessages.push({
     text: modelResponse,

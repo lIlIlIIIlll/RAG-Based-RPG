@@ -10,6 +10,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
     modelName: "gemini-2.5-flash",
     temperature: 0.7,
     systemInstruction: "",
+    apiKey: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -21,11 +22,12 @@ const ConfigModal = ({ chatToken, onClose }) => {
       try {
         const response = await apiClient.get(`/chat/${chatToken}`);
         const currentConfig = response.data.config || {};
-        
+
         setConfig({
           modelName: currentConfig.modelName || "gemini-2.5-flash",
           temperature: currentConfig.temperature ?? 0.7,
           systemInstruction: currentConfig.systemInstruction || "",
+          apiKey: currentConfig.apiKey || "",
         });
       } catch (error) {
         addToast({ type: "error", message: "Erro ao carregar configurações." });
@@ -73,6 +75,19 @@ const ConfigModal = ({ chatToken, onClose }) => {
             />
             <span className={styles.hint}>
               Certifique-se de que o modelo é compatível com sua API Key.
+            </span>
+          </div>
+
+          <div className={styles.field}>
+            <label>Gemini API Key</label>
+            <input
+              type="password"
+              value={config.apiKey || ""}
+              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+              placeholder="Cole sua API Key aqui..."
+            />
+            <span className={styles.hint}>
+              Sua chave será salva apenas para este chat.
             </span>
           </div>
 

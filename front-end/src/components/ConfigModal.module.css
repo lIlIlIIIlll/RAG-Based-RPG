@@ -103,6 +103,7 @@
 }
 
 .field input[type="text"],
+.field input[type="password"],
 .field textarea {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid var(--border-subtle);
@@ -113,6 +114,11 @@
   font-size: 15px;
   resize: vertical;
   transition: all 0.2s;
+}
+
+.field input[type="password"] {
+  font-family: var(--font-mono);
+  letter-spacing: 1px;
 }
 
 .field input:focus,

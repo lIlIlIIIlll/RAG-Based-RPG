@@ -62,4 +62,5 @@ function getHistoryWithWordLimit(fullHistory, wordLimit) {
 
 module.exports = {
   getHistoryWithWordLimit,
+  countWords,
 };
