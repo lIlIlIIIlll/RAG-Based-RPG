@@ -7,6 +7,22 @@
   width: 100%;
   position: relative;
   animation: slideUp 0.4s var(--ease-out-expo);
+  transition: background-color 0.2s;
+}
+
+.messageRow.selectionMode {
+  cursor: pointer;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 12px;
+}
+
+.messageRow.selectionMode:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.messageRow.selected {
+  background-color: rgba(255, 215, 0, 0.05);
 }
 
 @keyframes slideUp {
@@ -27,6 +43,54 @@
 
 .botRow {
   flex-direction: row;
+}
+
+/* Checkbox for Selection Mode */
+.selectionCheckbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
+  margin-top: 12px;
+}
+
+.userRow .selectionCheckbox {
+  margin-left: 10px;
+}
+
+.botRow .selectionCheckbox {
+  margin-right: 10px;
+}
+
+.checkboxUnchecked {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-subtle);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.checkboxChecked {
+  width: 20px;
+  height: 20px;
+  background-color: var(--accent-primary);
+  border: 2px solid var(--accent-primary);
+  border-radius: 6px;
+  position: relative;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.checkboxChecked::after {
+  content: '';
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  width: 6px;
+  height: 10px;
+  border: solid #000;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -60%) rotate(45deg);
 }
 
 /* Avatar */

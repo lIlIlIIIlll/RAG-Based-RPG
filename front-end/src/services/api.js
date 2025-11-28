@@ -140,6 +140,17 @@ export const updateChatConfig = async (chatToken, config) => {
   }
 };
 
+export const renameChat = async (chatToken, newTitle) => {
+  const CONTEXT = "API:RENAME_CHAT";
+  try {
+    const response = await apiClient.put(`/chat/${chatToken}/rename`, { newTitle });
+    return response.data;
+  } catch (error) {
+    log(CONTEXT, "ERRO: Falha ao renomear chat.", "error", error);
+    throw error;
+  }
+};
+
 // --- Mensagens e IA ---
 
 /**
@@ -231,18 +242,17 @@ export const searchMemory = async (chatToken, collectionName, text) => {
     );
     return response.data;
   } catch (error) {
-    log(CONTEXT, "ERRO: Falha ao buscar memórias.", "error", error);
     throw error;
   }
 };
 
-export const renameChat = async (chatToken, newTitle) => {
-  const CONTEXT = "API:RENAME_CHAT";
+export const deleteMemories = async (chatToken, messageids) => {
+  const CONTEXT = "API:DELETE_MEMORIES";
   try {
-    const response = await apiClient.put(`/chat/${chatToken}/rename`, { newTitle });
+    const response = await apiClient.post(`/chat/${chatToken}/memories/delete`, { messageids });
     return response.data;
   } catch (error) {
-    log(CONTEXT, "ERRO: Falha ao renomear chat.", "error", error);
+    log(CONTEXT, "ERRO: Falha ao deletar memórias.", "error", error);
     throw error;
   }
 };

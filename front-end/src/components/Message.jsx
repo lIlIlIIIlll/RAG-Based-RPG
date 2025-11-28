@@ -13,7 +13,10 @@ const Message = ({
   onEdit,
   onDelete,
   onRegenerate,
-  onPreviewFile
+  onPreviewFile,
+  isSelectionMode,
+  isSelected,
+  onToggleSelection
 }) => {
   const { role, text, messageid, attachments } = msg;
   const isUser = role === "user";
@@ -88,10 +91,17 @@ const Message = ({
 
   return (
     <div
-      className={`${styles.messageRow} ${isUser ? styles.userRow : styles.botRow}`}
+      className={`${styles.messageRow} ${isUser ? styles.userRow : styles.botRow} ${isSelectionMode ? styles.selectionMode : ''} ${isSelected ? styles.selected : ''}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={isSelectionMode ? onToggleSelection : undefined}
     >
+      {isSelectionMode && (
+        <div className={styles.selectionCheckbox}>
+          {isSelected ? <div className={styles.checkboxChecked} /> : <div className={styles.checkboxUnchecked} />}
+        </div>
+      )}
+
       <div className={styles.avatar}>
         {isUser ? <User size={18} /> : <Bot size={18} />}
       </div>
@@ -105,10 +115,10 @@ const Message = ({
                 <FileCard
                   key={index}
                   fileName={fileName}
-                  onClick={() => {
+                  onClick={(e) => {
+                    if (isSelectionMode) return;
+                    e.stopPropagation();
                     // Para arquivos já enviados, construímos a URL baseada no backend
-                    // Assumindo que o backend serve arquivos estáticos ou tem uma rota de download
-                    // Se não tiver, o preview pode falhar ou precisar de ajuste
                     const baseUrl = "http://localhost:3001/uploads"; // Ajuste conforme sua configuração
                     const fileUrl = `${baseUrl}/${fileName}`;
 
@@ -136,12 +146,16 @@ const Message = ({
                     src={`data:${att.mimeType};base64,${att.data}`}
                     alt="Generated"
                     className={styles.generatedImage}
-                    onClick={() => onPreviewFile && onPreviewFile({
-                      name: `generated_${index}.png`,
-                      type: att.mimeType,
-                      url: `data:${att.mimeType};base64,${att.data}`,
-                      content: null
-                    })}
+                    onClick={(e) => {
+                      if (isSelectionMode) return;
+                      e.stopPropagation();
+                      onPreviewFile && onPreviewFile({
+                        name: `generated_${index}.png`,
+                        type: att.mimeType,
+                        url: `data:${att.mimeType};base64,${att.data}`,
+                        content: null
+                      })
+                    }}
                   />
                 ) : null
               ))}
@@ -157,10 +171,11 @@ const Message = ({
                 onChange={(e) => setEditText(e.target.value)}
                 autoFocus
                 rows={1}
+                onClick={(e) => e.stopPropagation()}
               />
               <div className={styles.editActions}>
-                <button onClick={() => setIsEditing(false)} className={styles.cancelBtn}>Cancelar</button>
-                <button onClick={handleSaveEdit} className={styles.saveBtn}>Salvar</button>
+                <button onClick={(e) => { e.stopPropagation(); setIsEditing(false); }} className={styles.cancelBtn}>Cancelar</button>
+                <button onClick={(e) => { e.stopPropagation(); handleSaveEdit(); }} className={styles.saveBtn}>Salvar</button>
               </div>
             </div>
           ) : (
@@ -175,19 +190,19 @@ const Message = ({
         </div>
 
         {/* Menu de Ações (Visível no Hover via CSS) */}
-        {!isEditing && (
+        {!isEditing && !isSelectionMode && (
           <div className={styles.actions}>
-            <button onClick={handleCopy} title="Copiar">
+            <button onClick={(e) => { e.stopPropagation(); handleCopy(); }} title="Copiar">
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
 
             {/* Só permite editar/deletar se tiver ID (mensagens persistidas) */}
             {messageid && (
               <>
-                <button onClick={() => setIsEditing(true)} title="Editar">
+                <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} title="Editar">
                   <Edit2 size={14} />
                 </button>
-                <button onClick={() => onDelete(messageid)} title="Deletar">
+                <button onClick={(e) => { e.stopPropagation(); onDelete(messageid); }} title="Deletar">
                   <Trash2 size={14} />
                 </button>
               </>
@@ -195,7 +210,7 @@ const Message = ({
 
             {/* Botão Regenerar apenas para última mensagem do BOT */}
             {!isUser && isLast && onRegenerate && (
-              <button onClick={onRegenerate} title="Regenerar Resposta">
+              <button onClick={(e) => { e.stopPropagation(); onRegenerate(); }} title="Regenerar Resposta">
                 <RefreshCw size={14} />
               </button>
             )}
