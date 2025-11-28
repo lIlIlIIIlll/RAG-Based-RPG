@@ -1,0 +1,227 @@
+/* src/components/ChatWindow.module.css */
+
+.chatWindow {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  /* Background is handled by App container */
+}
+
+.messageList {
+  overflow-y: auto;
+  height: 90%;
+  padding: 40px 40px 120px 40px;
+  /* Extra padding bottom for floating input */
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  scroll-behavior: smooth;
+}
+
+/* Estado Vazio */
+.emptyState {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  text-align: center;
+  animation: fadeIn 1s var(--ease-out-expo);
+}
+
+.emptyState h2 {
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #fff 0%, #888 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.emptyState p {
+  color: var(--text-secondary);
+  font-size: 16px;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+/* Loading */
+.loadingContainer {
+  padding: 40px 0;
+  display: flex;
+  justify-content: center;
+  opacity: 0.7;
+}
+
+/* Área de Input Flutuante */
+.inputArea {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 900px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.inputForm {
+  width: 100%;
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s var(--ease-out-expo);
+}
+
+.inputForm:focus-within {
+  border-color: var(--border-glow);
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.05);
+  background: rgba(25, 25, 25, 0.9);
+}
+
+.textInput {
+  flex-grow: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 10px 0;
+  resize: none;
+  outline: none;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.textInput::placeholder {
+  color: var(--text-muted);
+}
+
+.sendButton {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent-primary);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  margin-bottom: 2px;
+  box-shadow: 0 4px 15px var(--accent-glow);
+}
+
+.sendButton:hover:not(:disabled) {
+  transform: scale(1.1) rotate(-10deg);
+  box-shadow: 0 6px 20px var(--accent-glow);
+}
+
+.sendButton:disabled {
+  background: #333;
+  color: #555;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.attachButton {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 2px;
+}
+
+.attachButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.fileList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  padding: 0 10px;
+  margin-bottom: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Scrollbar styling for fileList */
+.fileList::-webkit-scrollbar {
+  width: 4px;
+}
+
+.fileList::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.fileList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.footerNote {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+@media (max-width: 768px) {
+  .messageList {
+    padding: 20px 16px 100px 16px;
+  }
+
+  .inputArea {
+    width: 95%;
+    bottom: 20px;
+  }
+
+  .inputForm {
+    padding: 10px 16px;
+    border-radius: 20px;
+  }
+
+  .sendButton {
+    width: 38px;
+    height: 38px;
+  }
+
+  .emptyState h2 {
+    font-size: 24px;
+  }
+
+  .emptyState p {
+    font-size: 14px;
+    padding: 0 20px;
+  }
+}

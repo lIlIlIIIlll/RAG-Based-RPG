@@ -1,0 +1,10 @@
+/* src/components/ChatView.module.css */
+
+.chatViewContainer {
+  display: flex;
+  height: 100%;
+  /* antes estava 100vh e brigava com o App */
+  overflow: hidden;
+  position: relative;
+  /* Added for absolute positioning of children */
+}

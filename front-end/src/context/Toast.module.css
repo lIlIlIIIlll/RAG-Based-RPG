@@ -1,0 +1,146 @@
+/* src/components/Toast/Toast.module.css */
+
+/* Container que agrupa todas as notificações ativas */
+.toastContainer {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* Permite clicar "através" da área vazia */
+  width: 90%;
+  max-width: 400px;
+}
+
+/* O card da notificação individual */
+.toast {
+  pointer-events: auto; /* Reabilita cliques no card */
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 
+    0 4px 24px -1px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  position: relative;
+  
+  /* Animação de Entrada */
+  animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+}
+
+/* Estado de saída (adicionado via JS/React class manipulation se necessário, 
+   ou controlado por unmount animation libs. Aqui faremos simples via keyframes de entrada) */
+
+@keyframes slideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* --- Variantes de Tipo --- */
+
+.toast.success {
+  border-left: 3px solid #4caf50;
+}
+.toast.success .icon { color: #4caf50; }
+
+.toast.error {
+  border-left: 3px solid var(--error-color);
+}
+.toast.error .icon { color: var(--error-color); }
+
+.toast.info {
+  border-left: 3px solid var(--accent-primary);
+}
+.toast.info .icon { color: var(--accent-primary); }
+
+/* --- Elementos Internos --- */
+
+.icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.content {
+  flex: 1;
+}
+
+.title {
+  font-weight: 600;
+  margin-bottom: 2px;
+  display: block;
+}
+
+.message {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  margin: -4px -4px 0 0;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+/* --- Barra de Progresso (Timer) --- */
+.progressBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.2);
+  width: 100%;
+  transform-origin: left;
+  animation: progress linear forwards;
+}
+
+.toast.success .progressBar { background: #4caf50; }
+.toast.error .progressBar { background: var(--error-color); }
+.toast.info .progressBar { background: var(--accent-primary); }
+
+@keyframes progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
