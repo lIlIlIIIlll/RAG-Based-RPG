@@ -14,7 +14,9 @@ const app = express();
 app.use(cors());
 
 // Habilita o parsing de JSON no corpo das requisições
-app.use(express.json());
+// Habilita o parsing de JSON no corpo das requisições com limite aumentado
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 
 // Middleware simples para logar requisições no console
 app.use((req, res, next) => {
