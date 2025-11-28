@@ -59,14 +59,11 @@ const config = {
 };
 
 // Validação Robusta
+// A validação global da GEMINI_API_KEY foi removida pois agora cada chat possui sua própria configuração de chave.
 if (!config.geminiApiKey) {
-  console.error(
-    "ERRO CRÍTICO: A variável de ambiente GEMINI_API_KEY não foi definida."
+  console.warn(
+    "AVISO: A variável de ambiente GEMINI_API_KEY não foi definida. O sistema funcionará, mas será necessário configurar a chave API individualmente em cada chat."
   );
-  console.error(
-    "Por favor, crie um arquivo .env na raiz do projeto e adicione a linha: GEMINI_API_KEY=sua_chave_aqui"
-  );
-  process.exit(1); // Encerra a aplicação se a chave não estiver presente
 }
 
 module.exports = config;
