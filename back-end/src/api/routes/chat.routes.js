@@ -58,6 +58,10 @@ router.put("/edit/:chatToken/:messageid", chatController.editMessage);
 // DELETE /api/chat/message/:chatToken/:messageid
 router.delete("/message/:chatToken/:messageid", chatController.deleteMessage);
 
+// Deletar múltiplas memórias (confirmado pelo usuário)
+// POST /api/chat/:chatToken/memories/delete
+router.post("/:chatToken/memories/delete", chatController.deleteMemories);
+
 // Buscar mensagens
 // POST /api/chat/search/:chatToken/:collectionName
 router.post(

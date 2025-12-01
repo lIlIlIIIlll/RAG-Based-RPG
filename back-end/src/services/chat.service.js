@@ -75,6 +75,41 @@ const tools = [
           },
           required: ["prompt"]
         }
+      },
+      {
+        name: "edit_memory",
+        description: "Edita uma memória existente (fato ou conceito). Use isso para corrigir informações incorretas ou atualizar conhecimentos obsoletos. O ID da memória é fornecido no contexto [ID: ...].",
+        parameters: {
+          type: "object",
+          properties: {
+            messageid: {
+              type: "string",
+              description: "O ID da memória a ser editada."
+            },
+            new_text: {
+              type: "string",
+              description: "O novo texto corrigido para a memória."
+            }
+          },
+          required: ["messageid", "new_text"]
+        }
+      },
+      {
+        name: "delete_memories",
+        description: "Propõe a remoção de memórias existentes (fatos ou conceitos). Use isso quando o usuário solicitar explicitamente a remoção ou quando informações estiverem incorretas/obsoletas e não puderem ser corrigidas. Requer aprovação do usuário.",
+        parameters: {
+          type: "object",
+          properties: {
+            messageids: {
+              type: "array",
+              items: {
+                type: "string"
+              },
+              description: "Lista de IDs das memórias a serem removidas."
+            }
+          },
+          required: ["messageids"]
+        }
       }
     ]
   }
@@ -116,33 +151,37 @@ async function createChat(userId) {
  * Importa um chat a partir de uma lista de mensagens.
  * @param {string} userId - ID do usuário.
  * @param {Array} messages - Lista de mensagens { role, text }.
+ * @param {string} apiKey - Chave da API Gemini (opcional, mas recomendada).
  * @returns {Promise<string>} O chatToken do novo chat.
  */
-async function importChat(userId, messages) {
+async function importChat(userId, messages, apiKey = "") {
   console.log(`[Service] Importando chat para user: ${userId} com ${messages.length} mensagens.`);
 
   // 1. Cria o chat
   const chatToken = await createChat(userId);
 
-  // 2. Adiciona as mensagens sequencialmente
-  // NOTA: Isso pode falhar se não houver API Key configurada, pois addMessage tenta gerar embedding.
-  // Como é importação, talvez devêssemos pular embedding se falhar?
-  // Por enquanto, deixamos falhar se não tiver key, mas o usuário acabou de criar, então não tem key.
-  // TODO: Melhorar fluxo de importação para lidar com falta de key (talvez gerar embeddings depois).
+  // 2. Se houver API Key, salva nas configurações
+  if (apiKey) {
+    const metadata = await chatStorage.getChatMetadata(chatToken);
+    if (metadata) {
+      metadata.config.apiKey = apiKey;
+      await chatStorage.saveChatMetadata(chatToken, metadata, userId);
+    }
+  }
+
+  // 3. Adiciona as mensagens sequencialmente
   for (const msg of messages) {
     if (msg.role && msg.text) {
       try {
-        await addMessage(chatToken, "historico", msg.text, msg.role);
+        // Passa a apiKey para addMessage, que agora pode gerar embeddings
+        await addMessage(chatToken, "historico", msg.text, msg.role, [], apiKey);
       } catch (e) {
-        console.warn(`[Service] Falha ao adicionar mensagem na importação (provável falta de API Key): ${e.message}`);
-        // Fallback: Inserir sem vetor? O LanceDB exige vetor? Se sim, estamos bloqueados.
-        // Se o LanceDB permitir vetor nulo/vazio, poderíamos tentar.
-        // Mas o ideal é o usuário configurar a chave antes de usar.
+        console.warn(`[Service] Falha ao adicionar mensagem na importação: ${e.message}`);
       }
     }
   }
 
-  // 3. Atualiza o título com base na primeira mensagem do usuário (se houver)
+  // 4. Atualiza o título com base na primeira mensagem do usuário (se houver)
   const firstUserMsg = messages.find(m => m.role === 'user');
   if (firstUserMsg) {
     const newTitle = firstUserMsg.text.substring(0, 30) + "...";
@@ -366,27 +405,36 @@ async function handleChatGeneration(
   const searchResultsArrays = await Promise.all(searchPromises);
   let combinedResults = [].concat(...searchResultsArrays);
 
-  // Remove itens que já estão no histórico curto
-  combinedResults = combinedResults.filter(
-    (item) => !shortHistoryIds.has(item.messageid)
-  );
-
   // --- ETAPA 4: Construir Memória Vetorial ---
   combinedResults.sort((a, b) => b._score - a._score);
+
+  // Deduplicar resultados
   const uniqueResults = Array.from(
     new Map(combinedResults.map((item) => [item.text, item])).values()
   );
 
-  let newVectorMemory = [];
+  // Filtra resultados que já estão no histórico recente (shortHistoryIds)
+  const uniqueFilteredResults = uniqueResults.filter(
+    (item) => !shortHistoryIds.has(item.messageid)
+  );
+
+  // 4.1 Memória para Exibição (UI) - Retorna os Top 20 relevantes (já filtrados)
+  const displayMemory = uniqueFilteredResults.slice(0, 20);
+
+  // 4.2 Memória para o Prompt (LLM) - Usa a lista filtrada
+  const filteredForPrompt = uniqueFilteredResults;
+
+  let promptMemory = [];
   let newVectorMemoryText = "";
   let memoryWordCount = 0;
   const wordCounter = (text) => (text ? text.trim().split(/\s+/).length : 0);
 
-  for (const result of uniqueResults) {
+  for (const result of filteredForPrompt) {
     const wordsInResult = wordCounter(result.text);
     if (memoryWordCount + wordsInResult <= config.vectorMemoryWordLimit) {
-      newVectorMemory.push(result);
-      newVectorMemoryText += `${result.text} \n-- -\n`;
+      promptMemory.push(result);
+      // Injeta ID e Categoria no texto visível para o LLM
+      newVectorMemoryText += `[ID: ${result.messageid}] [${result.category.toUpperCase()}] ${result.text} \n-- -\n`;
       memoryWordCount += wordsInResult;
     } else {
       break;
@@ -421,7 +469,6 @@ async function handleChatGeneration(
     return {
       role: record.role || "user",
       parts: parts,
-      // parts: [{ text: record.text }], // Simplificação se não houver anexos
     };
   });
 
@@ -436,6 +483,7 @@ async function handleChatGeneration(
   let finalModelResponseText = "";
   let loopCount = 0;
   const MAX_LOOPS = 5; // Evita loops infinitos
+  let pendingDeletionsForResponse = null; // Variável para armazenar deleções pendentes
 
   // Array para armazenar todas as mensagens geradas neste ciclo (ferramentas + resposta final)
   const generatedMessages = [];
@@ -545,6 +593,40 @@ async function handleChatGeneration(
           });
 
           result = { status: "success", message: "Imagem gerada e enviada ao usuário." };
+        } else if (name === "edit_memory") {
+          const wasUpdated = await editMessage(chatToken, args.messageid, args.new_text);
+          if (wasUpdated) {
+            result = { status: "success", message: "Memória atualizada com sucesso." };
+          } else {
+            result = { status: "error", message: "Memória não encontrada ou erro ao atualizar." };
+          }
+        } else if (name === "delete_memories") {
+          // Não deleta imediatamente. Retorna lista para confirmação do usuário.
+          const ids = args.messageids || [];
+          const memoriesToDelete = [];
+
+          for (const id of ids) {
+            // Tenta encontrar na memória carregada no contexto primeiro (mais rápido)
+            let memory = uniqueResults.find(m => m.messageid === id);
+
+            if (memory) {
+              memoriesToDelete.push({ messageid: id, text: memory.text, category: memory.category });
+            } else {
+              // Fallback: tenta buscar no DB (custoso, mas necessário para consistência)
+              // Como não temos getById global, vamos pular e mandar só ID com texto "Carregando..."
+              memoriesToDelete.push({ messageid: id, text: "(Memória não encontrada no contexto recente)", category: "?" });
+            }
+          }
+
+          result = {
+            status: "pending_confirmation",
+            message: "Aguardando confirmação do usuário para deletar memórias.",
+            pendingDeletions: memoriesToDelete
+          };
+
+          // Armazena as deleções pendentes para retornar ao frontend
+          pendingDeletionsForResponse = memoriesToDelete;
+
         } else {
           result = { error: "Function not found" };
         }
@@ -589,10 +671,11 @@ async function handleChatGeneration(
   }
 
   return {
-    modelResponse, // Mantém compatibilidade, mas o frontend deve olhar o history
+    modelResponse,
     history: conversationHistory.concat(generatedMessages),
-    wordCount: conversationWordCount + wordCounter(modelResponse), // Aproximado
-    newVectorMemory,
+    wordCount: conversationWordCount + wordCounter(modelResponse),
+    newVectorMemory: displayMemory,
+    pendingDeletions: pendingDeletionsForResponse // Retorna as deleções pendentes explicitamente
   };
 }
 

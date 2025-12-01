@@ -2,7 +2,7 @@
 import axios from "axios";
 import log from "./logger";
 
-const API_BASE_URL = "http://localhost:3001/api";
+const API_BASE_URL = "https://n8n-dungeon-master-69-api.r954jc.easypanel.host/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -67,13 +67,14 @@ export const createChat = async () => {
 /**
  * Importa um chat a partir de uma lista de mensagens.
  * @param {Array} messages - Lista de mensagens { role, text }.
+ * @param {string} apiKey - Chave da API Gemini.
  * @returns {Promise<string>} O chatToken do novo chat.
  */
-export const importChat = async (messages) => {
+export const importChat = async (messages, apiKey) => {
   const CONTEXT = "API:IMPORT_CHAT";
   try {
     log(CONTEXT, "Iniciando importação de chat...");
-    const response = await apiClient.post("/chat/import", { messages });
+    const response = await apiClient.post("/chat/import", { messages, apiKey });
     const { chatToken } = response.data;
     log(CONTEXT, `SUCESSO: Chat importado com token: ${chatToken}`);
     return chatToken;
@@ -135,6 +136,17 @@ export const updateChatConfig = async (chatToken, config) => {
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao atualizar config.", "error", error);
+    throw error;
+  }
+};
+
+export const renameChat = async (chatToken, newTitle) => {
+  const CONTEXT = "API:RENAME_CHAT";
+  try {
+    const response = await apiClient.put(`/chat/${chatToken}/rename`, { newTitle });
+    return response.data;
+  } catch (error) {
+    log(CONTEXT, "ERRO: Falha ao renomear chat.", "error", error);
     throw error;
   }
 };
@@ -230,18 +242,17 @@ export const searchMemory = async (chatToken, collectionName, text) => {
     );
     return response.data;
   } catch (error) {
-    log(CONTEXT, "ERRO: Falha ao buscar memórias.", "error", error);
     throw error;
   }
 };
 
-export const renameChat = async (chatToken, newTitle) => {
-  const CONTEXT = "API:RENAME_CHAT";
+export const deleteMemories = async (chatToken, messageids) => {
+  const CONTEXT = "API:DELETE_MEMORIES";
   try {
-    const response = await apiClient.put(`/chat/${chatToken}/rename`, { newTitle });
+    const response = await apiClient.post(`/chat/${chatToken}/memories/delete`, { messageids });
     return response.data;
   } catch (error) {
-    log(CONTEXT, "ERRO: Falha ao renomear chat.", "error", error);
+    log(CONTEXT, "ERRO: Falha ao deletar memórias.", "error", error);
     throw error;
   }
 };

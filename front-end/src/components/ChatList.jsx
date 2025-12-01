@@ -8,6 +8,7 @@ import { getAllChats, deleteChat, renameChat, importChat } from "../services/api
 import { useToast } from "../context/ToastContext";
 import { useConfirmation } from "../context/ConfirmationContext";
 import ConfigModal from "./ConfigModal.jsx";
+import ApiKeyModal from "./ApiKeyModal.jsx";
 import styles from "./ChatList.module.css";
 
 const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
@@ -15,6 +16,8 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [pendingImportMessages, setPendingImportMessages] = useState([]);
   const [editingChatId, setEditingChatId] = useState(null);
   const [newTitle, setNewTitle] = useState("");
   const { addToast } = useToast();
@@ -146,24 +149,38 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
           return;
         }
 
-        setLoading(true);
-        const chatToken = await importChat(filteredMessages);
-        addToast({ type: "success", message: "Campanha importada com sucesso!" });
-
-        await fetchChats();
-        onSelectChat(chatToken);
+        // Salva as mensagens pendentes e abre o modal de API Key
+        setPendingImportMessages(filteredMessages);
+        setShowApiKeyModal(true);
 
       } catch (error) {
-        console.error("Erro ao importar:", error);
+        console.error("Erro ao ler arquivo:", error);
         addToast({ type: "error", message: "Erro ao processar o arquivo. Verifique o formato." });
       } finally {
-        setLoading(false);
         if (fileInputRef.current) {
           fileInputRef.current.value = ""; // Reset input
         }
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleConfirmImport = async (apiKey) => {
+    setShowApiKeyModal(false);
+    setLoading(true);
+    try {
+      const chatToken = await importChat(pendingImportMessages, apiKey);
+      addToast({ type: "success", message: "Campanha importada com sucesso!" });
+
+      await fetchChats();
+      onSelectChat(chatToken);
+    } catch (error) {
+      console.error("Erro ao importar:", error);
+      addToast({ type: "error", message: "Erro ao importar chat." });
+    } finally {
+      setLoading(false);
+      setPendingImportMessages([]);
+    }
   };
 
   return (
@@ -299,6 +316,13 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
         <ConfigModal
           chatToken={activeChatToken}
           onClose={() => setShowConfig(false)}
+        />
+      )}
+
+      {showApiKeyModal && (
+        <ApiKeyModal
+          onClose={() => setShowApiKeyModal(false)}
+          onConfirm={handleConfirmImport}
         />
       )}
     </>

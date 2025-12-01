@@ -54,13 +54,13 @@ async function createChat(req, res, next) {
 async function importChat(req, res, next) {
   try {
     const userId = req.user ? req.user.id : null;
-    const { messages } = req.body;
+    const { messages, apiKey } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "O campo 'messages' deve ser um array." });
     }
 
-    const chatToken = await chatService.importChat(userId, messages);
+    const chatToken = await chatService.importChat(userId, messages, apiKey);
     res.status(201).json({ message: "Chat importado com sucesso!", chatToken });
   } catch (error) {
     next(error);
@@ -136,7 +136,30 @@ async function generateChatResponse(req, res, next) {
       files
     );
 
+    // Se houver pendências de deleção, o frontend receberá no generationResult
     res.status(200).json(generationResult);
+  } catch (error) {
+    next(error);
+  }
+}
+
+// [POST] /api/chat/:chatToken/memories/delete
+async function deleteMemories(req, res, next) {
+  try {
+    const { chatToken } = req.params;
+    const { messageids } = req.body;
+
+    if (!messageids || !Array.isArray(messageids)) {
+      return res.status(400).json({ error: "O campo 'messageids' deve ser um array de strings." });
+    }
+
+    const results = [];
+    for (const id of messageids) {
+      const wasDeleted = await chatService.deleteMessage(chatToken, id);
+      results.push({ id, deleted: wasDeleted });
+    }
+
+    res.status(200).json({ message: "Memórias deletadas com sucesso.", results });
   } catch (error) {
     next(error);
   }
@@ -245,4 +268,5 @@ module.exports = {
   deleteMessage,
   searchMessages,
   importChat,
+  deleteMemories
 };

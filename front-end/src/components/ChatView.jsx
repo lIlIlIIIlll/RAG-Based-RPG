@@ -9,8 +9,10 @@ import {
   editMemory,
   deleteMessage,
   getChatHistory,
-  apiClient
+  apiClient,
+  deleteMemories
 } from "../services/api.js";
+import ConfirmationModal from "./ConfirmationModal.jsx";
 import { useToast } from "../context/ToastContext";
 import { useConfirmation } from "../context/ConfirmationContext";
 import styles from "./ChatView.module.css";
@@ -24,6 +26,9 @@ const ChatView = ({ chatToken }) => {
   const { addToast } = useToast();
   const { confirm } = useConfirmation();
   const [diceAnimationData, setDiceAnimationData] = useState(null);
+  const [pendingDeletions, setPendingDeletions] = useState(null);
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
 
   // Carrega histórico ao montar ou trocar de chat
   useEffect(() => {
@@ -179,6 +184,12 @@ const ChatView = ({ chatToken }) => {
       });
 
       setVectorMemory(response.newVectorMemory || []);
+
+      // Check for pending deletions
+      if (response.pendingDeletions && response.pendingDeletions.length > 0) {
+        setPendingDeletions(response.pendingDeletions);
+        setIsConfirmationModalOpen(true);
+      }
     } catch (err) {
       addToast({
         type: "error",
@@ -244,10 +255,34 @@ const ChatView = ({ chatToken }) => {
     await handleSendMessage(lastUserMsg.text);
   };
 
-  const [previewFile, setPreviewFile] = useState(null);
+  const handleConfirmDeletions = async (selectedIds) => {
+    setIsConfirmationModalOpen(false);
+    if (selectedIds.length === 0) return;
+
+    try {
+      await deleteMemories(chatToken, selectedIds);
+      addToast({ type: "success", message: "Memórias excluídas com sucesso." });
+
+      // Atualiza a memória vetorial removendo os itens deletados
+      setVectorMemory(prev => prev.filter(m => !selectedIds.includes(m.messageid)));
+
+      // Atualiza a lista de mensagens removendo as deletadas
+      setMessages(prev => prev.filter(m => !selectedIds.includes(m.messageid)));
+
+    } catch (error) {
+      addToast({ type: "error", message: "Erro ao excluir memórias." });
+    } finally {
+      setPendingDeletions(null);
+    }
+  };
 
   const handlePreviewFile = (file) => {
     setPreviewFile(file);
+  };
+
+  const handleMassDelete = (messagesToDelete) => {
+    setPendingDeletions(messagesToDelete);
+    setIsConfirmationModalOpen(true);
   };
 
   return (
@@ -260,6 +295,7 @@ const ChatView = ({ chatToken }) => {
         onDeleteMessage={handleDeleteMessage}
         onRegenerate={handleRegenerate}
         onPreviewFile={handlePreviewFile}
+        onMassDelete={handleMassDelete}
       />
       <MemoryPanel chatToken={chatToken} vectorMemory={vectorMemory} />
 
@@ -276,6 +312,13 @@ const ChatView = ({ chatToken }) => {
           onComplete={() => setDiceAnimationData(null)}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        onConfirm={handleConfirmDeletions}
+        pendingDeletions={pendingDeletions}
+      />
     </div>
   );
 };
