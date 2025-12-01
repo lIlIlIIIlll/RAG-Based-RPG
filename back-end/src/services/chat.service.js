@@ -526,22 +526,23 @@ async function handleChatGeneration(
         const funcCallObj = { ...call };
 
         modelTurnParts.push({
-          functionCall: {
-            ...funcCallObj,
-            thoughtSignature: "context_engineering_is_the_way_to_go"
-          }
+          functionCall: funcCallObj,
+          thoughtSignature: "context_engineering_is_the_way_to_go"
         });
       }
     } else {
       // Se usamos parts originais, verificamos se precisamos injetar a assinatura também
       modelTurnParts = modelTurnParts.map(part => {
-        if (part.functionCall && !part.functionCall.thoughtSignature) {
+        // Verifica se é uma part de functionCall
+        if (part.functionCall) {
+          // Se já tem a assinatura no nível correto (irmão de functionCall), mantém
+          if (part.thoughtSignature) {
+            return part;
+          }
+          // Se não tem, verifica se está aninhado incorretamente (legado) e corrige, ou injeta dummy
           return {
             ...part,
-            functionCall: {
-              ...part.functionCall,
-              thoughtSignature: "context_engineering_is_the_way_to_go"
-            }
+            thoughtSignature: part.functionCall.thoughtSignature || "context_engineering_is_the_way_to_go"
           };
         }
         return part;
