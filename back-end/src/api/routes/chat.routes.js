@@ -32,20 +32,6 @@ router.get("/:chatToken", chatController.getChatDetails);
 // DELETE /api/chat/:chatToken
 router.delete("/:chatToken", chatController.deleteChat);
 
-// Atualizar configuração do chat
-// PUT /api/chat/:chatToken/config
-router.put("/:chatToken/config", chatController.updateChatConfig);
-
-// Renomear chat
-// PUT /api/chat/:chatToken/rename
-router.put("/:chatToken/rename", chatController.renameChat);
-
-// --- Gerenciamento de Mensagens/Memória ---
-
-// Gerar resposta da IA
-// POST /api/chat/generate/:chatToken
-router.post("/generate/:chatToken", upload.array("files"), chatController.generateChatResponse);
-
 // Inserir mensagem manual
 // POST /api/chat/insert/:chatToken/:collectionName
 router.post("/insert/:chatToken/:collectionName", chatController.addMessage);
@@ -67,6 +53,18 @@ router.post("/:chatToken/memories/delete", chatController.deleteMemories);
 router.post(
   "/search/:chatToken/:collectionName",
   chatController.searchMessages
+);
+
+// Branch Chat
+// POST /api/chat/:chatToken/message/:messageId/branch
+router.post("/:chatToken/message/:messageId/branch", chatController.branchChat);
+
+// Gerar resposta do chat (RAG + Gemini)
+// POST /api/chat/generate/:chatToken
+router.post(
+  "/generate/:chatToken",
+  upload.array("files"),
+  chatController.generateChatResponse
 );
 
 module.exports = router;

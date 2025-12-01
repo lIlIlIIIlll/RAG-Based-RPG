@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, AlertTriangle, Trash2, Check, Database, Brain, History } from 'lucide-react';
 import styles from './ConfirmationModal.module.css';
 
@@ -12,6 +12,25 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
             setSelectedIds([]);
         }
     }, [pendingDeletions]);
+
+    // Fecha ao pressionar ESC
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === "Escape") {
+                if (onCancel) onCancel();
+                else if (onClose) onClose();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [onClose, onCancel]);
+
+    const handleBackdropClick = (e) => {
+        if (e.target === e.currentTarget) {
+            if (onCancel) onCancel();
+            else if (onClose) onClose();
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -45,7 +64,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
     };
 
     return (
-        <div className={styles.overlay}>
+        <div className={styles.overlay} onClick={handleBackdropClick}>
             <div className={styles.modal}>
                 <div className={styles.header}>
                     <div className={styles.title}>

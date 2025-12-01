@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Check } from "lucide-react";
 import styles from "./ConfigModal.module.css"; // Reusing ConfigModal styles for consistency
 
@@ -12,8 +12,25 @@ const ApiKeyModal = ({ onClose, onConfirm }) => {
         }
     };
 
+    // Fecha ao pressionar ESC
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === "Escape") {
+                onClose();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [onClose]);
+
+    const handleBackdropClick = (e) => {
+        if (e.target === e.currentTarget) {
+            onClose();
+        }
+    };
+
     return (
-        <div className={styles.overlay}>
+        <div className={styles.overlay} onClick={handleBackdropClick}>
             <div className={styles.modal} style={{ maxWidth: '500px' }}>
                 <div className={styles.header}>
                     <h2>Configurar API Key</h2>

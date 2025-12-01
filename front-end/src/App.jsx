@@ -14,6 +14,7 @@ function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/chat" element={<ChatInterface />} />
+        <Route path="/c/:chatId" element={<ChatInterface />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

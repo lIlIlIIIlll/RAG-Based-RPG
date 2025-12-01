@@ -108,6 +108,19 @@ async function renameChat(req, res, next) {
   }
 }
 
+// [POST] /api/chat/:chatToken/message/:messageId/branch
+async function branchChat(req, res, next) {
+  try {
+    const { chatToken, messageId } = req.params;
+    const userId = req.user ? req.user.id : null;
+
+    const newChatToken = await chatService.branchChat(chatToken, messageId, userId);
+    res.status(201).json({ message: "Chat bifurcado com sucesso!", chatToken: newChatToken });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // --- Gerenciamento de Mensagens/Memória ---
 
 // [POST] /api/chat/generate/:chatToken
@@ -268,5 +281,6 @@ module.exports = {
   deleteMessage,
   searchMessages,
   importChat,
-  deleteMemories
+  deleteMemories,
+  branchChat
 };

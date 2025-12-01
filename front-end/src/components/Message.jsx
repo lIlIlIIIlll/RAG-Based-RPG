@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
-import { User, Bot, Copy, Edit2, Trash2, RefreshCw, Check } from "lucide-react";
+import { User, Bot, Copy, Edit2, Trash2, RefreshCw, Check, GitBranch } from "lucide-react";
 import FileCard from "./FileCard.jsx";
 import DiceResult from "./DiceResult.jsx";
 import styles from "./Message.module.css";
@@ -16,7 +16,8 @@ const Message = ({
   onPreviewFile,
   isSelectionMode,
   isSelected,
-  onToggleSelection
+  onToggleSelection,
+  onBranch
 }) => {
   const { role, text, messageid, attachments } = msg;
   const isUser = role === "user";
@@ -102,42 +103,103 @@ const Message = ({
         </div>
       )}
 
-      <div className={styles.avatar}>
-        {isUser ? <User size={18} /> : <Bot size={18} />}
-      </div>
+      {isUser && (
+        <div className={styles.avatar}>
+          <User size={18} />
+        </div>
+      )}
 
       <div className={styles.contentWrapper}>
+        {/* Menu de Ações (Visível no Hover via CSS) */}
+        <div className={`${styles.actions} ${isEditing || isSelectionMode ? styles.hidden : ''}`}>
+          <button onClick={(e) => { e.stopPropagation(); handleCopy(); }} title="Copiar">
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+
+          {/* Só permite editar/deletar se tiver ID (mensagens persistidas) */}
+          {messageid && (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} title="Editar">
+                <Edit2 size={14} />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onDelete(messageid); }} title="Deletar">
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
+
+          {/* Botão Branch (apenas para mensagens persistidas) */}
+          {messageid && onBranch && (
+            <button onClick={(e) => { e.stopPropagation(); onBranch(messageid); }} title="Criar Branch (Novo Chat a partir daqui)">
+              <GitBranch size={14} />
+            </button>
+          )}
+
+          {/* Botão Regenerar apenas para última mensagem do BOT */}
+          {!isUser && isLast && onRegenerate && (
+            <button onClick={(e) => { e.stopPropagation(); onRegenerate(); }} title="Regenerar Resposta">
+              <RefreshCw size={14} />
+            </button>
+          )}
+        </div>
+
         <div className={styles.bubble}>
           {/* Arquivos enviados pelo usuário */}
           {files.length > 0 && !isEditing && (
             <div className={styles.fileAttachments}>
-              {files.map((fileName, index) => (
-                <FileCard
-                  key={index}
-                  fileName={fileName}
-                  onClick={(e) => {
-                    if (isSelectionMode) return;
-                    e.stopPropagation();
-                    // Para arquivos já enviados, construímos a URL baseada no backend
-                    const baseUrl = "http://localhost:3001/uploads"; // Ajuste conforme sua configuração
-                    const fileUrl = `${baseUrl}/${fileName}`;
+              {files.map((fileName, index) => {
+                const baseUrl = "http://localhost:3001/uploads";
+                const fileUrl = `${baseUrl}/${fileName}`;
+                const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(fileName);
 
-                    if (onPreviewFile) {
-                      onPreviewFile({
-                        name: fileName,
-                        type: fileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg', // Inferência simples
-                        url: fileUrl,
-                        content: null
-                      });
-                    }
-                  }}
-                />
-              ))}
+                if (isImage) {
+                  return (
+                    <img
+                      key={index}
+                      src={fileUrl}
+                      alt={fileName}
+                      className={styles.generatedImage}
+                      onClick={(e) => {
+                        if (isSelectionMode) return;
+                        e.stopPropagation();
+                        if (onPreviewFile) {
+                          onPreviewFile({
+                            name: fileName,
+                            type: 'image/jpeg',
+                            url: fileUrl,
+                            content: null
+                          });
+                        }
+                      }}
+                    />
+                  );
+                }
+
+                return (
+                  <FileCard
+                    key={index}
+                    fileName={fileName}
+                    url={fileUrl}
+                    onClick={(e) => {
+                      if (isSelectionMode) return;
+                      e.stopPropagation();
+                      if (onPreviewFile) {
+                        onPreviewFile({
+                          name: fileName,
+                          type: 'application/pdf',
+                          url: fileUrl,
+                          content: null
+                        });
+                      }
+                    }}
+                  />
+                );
+              })}
             </div>
           )}
 
-          {/* Imagens geradas pelo modelo */}
-          {parsedAttachments.length > 0 && (
+          {/* Imagens geradas pelo modelo (ou anexos do bot) */}
+          {!isUser && parsedAttachments.length > 0 && (
             <div className={styles.generatedImages}>
               {parsedAttachments.map((att, index) => (
                 att.mimeType.startsWith('image/') ? (
@@ -188,34 +250,6 @@ const Message = ({
             </div>
           )}
         </div>
-
-        {/* Menu de Ações (Visível no Hover via CSS) */}
-        {!isEditing && !isSelectionMode && (
-          <div className={styles.actions}>
-            <button onClick={(e) => { e.stopPropagation(); handleCopy(); }} title="Copiar">
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-            </button>
-
-            {/* Só permite editar/deletar se tiver ID (mensagens persistidas) */}
-            {messageid && (
-              <>
-                <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} title="Editar">
-                  <Edit2 size={14} />
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); onDelete(messageid); }} title="Deletar">
-                  <Trash2 size={14} />
-                </button>
-              </>
-            )}
-
-            {/* Botão Regenerar apenas para última mensagem do BOT */}
-            {!isUser && isLast && onRegenerate && (
-              <button onClick={(e) => { e.stopPropagation(); onRegenerate(); }} title="Regenerar Resposta">
-                <RefreshCw size={14} />
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

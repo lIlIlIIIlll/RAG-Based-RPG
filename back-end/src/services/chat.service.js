@@ -1,124 +1,19 @@
 // src/services/chat.service.js
 const { v4: uuidv4 } = require("uuid");
-const geminiService = require("./gemini.service");
 const lanceDBService = require("./lancedb.service");
 const chatStorage = require("./chatStorage.service");
-const { getHistoryWithWordLimit } = require("../utils/historyHelper");
+const geminiService = require("./gemini.service");
 const config = require("../config");
-const fs = require("fs");
-const path = require("path");
 
-// --- Definição de Ferramentas (Function Calling) ---
-const tools = [
-  {
-    functionDeclarations: [
-      {
-        name: "insert_fact",
-        description: "Insere um novo fato na base de conhecimento (coleção 'fatos'). Use isso quando o usuário fornecer uma informação factual nova que deve ser lembrada.",
-        parameters: {
-          type: "object",
-          properties: {
-            text: {
-              type: "string",
-              description: "O conteúdo do fato a ser armazenado."
-            }
-          },
-          required: ["text"]
-        }
-      },
-      {
-        name: "insert_concept",
-        description: "Insere um novo conceito na base de conhecimento (coleção 'conceitos'). Use isso para definições, teorias ou ideias abstratas.",
-        parameters: {
-          type: "object",
-          properties: {
-            text: {
-              type: "string",
-              description: "A definição ou explicação do conceito."
-            }
-          },
-          required: ["text"]
-        }
-      },
-      {
-        name: "roll_dice",
-        description: "Rola dados de RPG. Use isso quando precisar determinar um resultado aleatório, como um ataque, teste de habilidade ou dano. O sistema retornará o resultado da rolagem.",
-        parameters: {
-          type: "object",
-          properties: {
-            count: {
-              type: "integer",
-              description: "Número de dados a rolar (ex: 1, 2, 4)."
-            },
-            type: {
-              type: "string",
-              description: "Tipo de dado (ex: '20' para d20, '6' para d6, 'F' para Fudge)."
-            },
-            modifier: {
-              type: "integer",
-              description: "Modificador a ser somado ao total (opcional, padrão 0)."
-            }
-          },
-          required: ["count", "type"]
-        }
-      },
-      {
-        name: "generate_image",
-        description: "Gera uma imagem baseada em uma descrição. Use isso para criar representações visuais de cenas, personagens, itens ou qualquer coisa que o usuário pedir.",
-        parameters: {
-          type: "object",
-          properties: {
-            prompt: {
-              type: "string",
-              description: "A descrição detalhada da imagem a ser gerada."
-            }
-          },
-          required: ["prompt"]
-        }
-      },
-      {
-        name: "edit_memory",
-        description: "Edita uma memória existente (fato ou conceito). Use isso para corrigir informações incorretas ou atualizar conhecimentos obsoletos. O ID da memória é fornecido no contexto [ID: ...].",
-        parameters: {
-          type: "object",
-          properties: {
-            messageid: {
-              type: "string",
-              description: "O ID da memória a ser editada."
-            },
-            new_text: {
-              type: "string",
-              description: "O novo texto corrigido para a memória."
-            }
-          },
-          required: ["messageid", "new_text"]
-        }
-      },
-      {
-        name: "delete_memories",
-        description: "Propõe a remoção de memórias existentes (fatos ou conceitos). Use isso quando o usuário solicitar explicitamente a remoção ou quando informações estiverem incorretas/obsoletas e não puderem ser corrigidas. Requer aprovação do usuário.",
-        parameters: {
-          type: "object",
-          properties: {
-            messageids: {
-              type: "array",
-              items: {
-                type: "string"
-              },
-              description: "Lista de IDs das memórias a serem removidas."
-            }
-          },
-          required: ["messageids"]
-        }
-      }
-    ]
-  }
-];
+// Função auxiliar para contar palavras
+function wordCounter(text) {
+  return text ? text.split(/\s+/).length : 0;
+}
 
 /**
- * Cria um novo chat, gerando token, tabelas no DB e arquivo de metadados.
+ * Cria um novo chat.
  * @param {string} userId - ID do usuário dono do chat.
- * @returns {Promise<string>} O chatToken gerado.
+ * @returns {Promise<string>} - Token do novo chat.
  */
 async function createChat(userId) {
   const chatToken = uuidv4();
@@ -148,52 +43,9 @@ async function createChat(userId) {
 }
 
 /**
- * Importa um chat a partir de uma lista de mensagens.
- * @param {string} userId - ID do usuário.
- * @param {Array} messages - Lista de mensagens { role, text }.
- * @param {string} apiKey - Chave da API Gemini (opcional, mas recomendada).
- * @returns {Promise<string>} O chatToken do novo chat.
- */
-async function importChat(userId, messages, apiKey = "") {
-  console.log(`[Service] Importando chat para user: ${userId} com ${messages.length} mensagens.`);
-
-  // 1. Cria o chat
-  const chatToken = await createChat(userId);
-
-  // 2. Se houver API Key, salva nas configurações
-  if (apiKey) {
-    const metadata = await chatStorage.getChatMetadata(chatToken);
-    if (metadata) {
-      metadata.config.apiKey = apiKey;
-      await chatStorage.saveChatMetadata(chatToken, metadata, userId);
-    }
-  }
-
-  // 3. Adiciona as mensagens sequencialmente
-  for (const msg of messages) {
-    if (msg.role && msg.text) {
-      try {
-        // Passa a apiKey para addMessage, que agora pode gerar embeddings
-        await addMessage(chatToken, "historico", msg.text, msg.role, [], apiKey);
-      } catch (e) {
-        console.warn(`[Service] Falha ao adicionar mensagem na importação: ${e.message}`);
-      }
-    }
-  }
-
-  // 4. Atualiza o título com base na primeira mensagem do usuário (se houver)
-  const firstUserMsg = messages.find(m => m.role === 'user');
-  if (firstUserMsg) {
-    const newTitle = firstUserMsg.text.substring(0, 30) + "...";
-    await chatStorage.updateChatTitle(chatToken, newTitle);
-  }
-
-  return chatToken;
-}
-
-/**
- * Retorna a lista de todos os chats criados.
- * @param {string} userId - ID do usuário para filtrar.
+ * Lista todos os chats de um usuário.
+ * @param {string} userId
+ * @returns {Promise<Array>}
  */
 async function getAllChats(userId) {
   console.log(`[Service] Listando todos os chats para user: ${userId}...`);
@@ -201,375 +53,397 @@ async function getAllChats(userId) {
 }
 
 /**
- * Deleta um chat completo (Tabelas + Metadados).
- * @param {string} chatToken 
- */
-async function deleteChat(chatToken) {
-  console.log(`[Service] Deletando chat: ${chatToken}`);
-  // 1. Remove do disco
-  await chatStorage.deleteChatMetadata(chatToken);
-  // 2. Remove do LanceDB
-  await lanceDBService.deleteChatTables(chatToken);
-}
-
-/**
- * Atualiza as configurações de um chat.
- * @param {string} chatToken 
- * @param {object} newConfig 
- */
-async function updateChatConfig(chatToken, newConfig) {
-  console.log(`[Service] Atualizando config do chat ${chatToken}...`);
-  return await chatStorage.updateChatConfig(chatToken, newConfig);
-}
-
-/**
- * Retorna os metadados de um chat específico.
+ * Obtém detalhes de um chat específico.
+ * @param {string} chatToken
+ * @returns {Promise<Object>}
  */
 async function getChatDetails(chatToken) {
   return await chatStorage.getChatMetadata(chatToken);
 }
 
 /**
- * Recupera o histórico completo de mensagens de um chat.
- * @param {string} chatToken 
+ * Obtém histórico completo de mensagens de um chat.
+ * @param {string} chatToken
  * @returns {Promise<Array>}
  */
 async function getChatHistory(chatToken) {
   console.log(`[Service] Recuperando histórico completo para: ${chatToken}`);
-  const history = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
-  return history;
+  return await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
 }
 
 /**
- * Helper para obter API Key do chat
+ * Deleta um chat completamente (LanceDB + Metadados).
+ * @param {string} chatToken
+ * @param {string} userId
  */
-async function getChatApiKey(chatToken) {
-  const meta = await chatStorage.getChatMetadata(chatToken);
-  return meta?.config?.apiKey;
+async function deleteChat(chatToken, userId) {
+  console.log(`[Service] Deletando chat: ${chatToken}`);
+
+  // 1. Remove tabelas do LanceDB
+  await lanceDBService.deleteChatTables(chatToken);
+
+  // 2. Remove arquivo de metadados
+  await chatStorage.deleteChatMetadata(chatToken, userId);
 }
 
 /**
- * Adiciona uma mensagem a uma coleção.
+ * Atualiza configurações do chat.
+ * @param {string} chatToken
+ * @param {Object} newConfig
  */
-async function addMessage(chatToken, collectionName, text, role = "user", attachments = [], apiKey = null) {
-  console.log(
-    `[Service] Adicionando mensagem à coleção '${collectionName}' com role=${role}.`
-  );
+async function updateChatConfig(chatToken, newConfig) {
+  console.log(`[Service] Atualizando config do chat: ${chatToken}`, newConfig);
+  const metadata = await chatStorage.getChatMetadata(chatToken);
+  if (!metadata) throw new Error("Chat não encontrado");
 
-  if (!apiKey) {
-    apiKey = await getChatApiKey(chatToken);
+  metadata.config = { ...metadata.config, ...newConfig };
+  metadata.updatedAt = new Date().toISOString();
+
+  await chatStorage.saveChatMetadata(chatToken, metadata, metadata.userId);
+  return metadata;
+}
+
+/**
+ * Adiciona uma mensagem ao histórico (ou outra coleção).
+ * @param {string} chatToken
+ * @param {string} collectionName
+ * @param {string} text
+ * @param {string} role
+ * @param {Array} attachments
+ * @param {string} apiKey
+ */
+async function addMessage(chatToken, collectionName, text, role, attachments = [], apiKey) {
+  // Gera embedding apenas se tiver API Key
+  let vector = null;
+  if (apiKey) {
+    try {
+      // Se houver anexos, o embedding deve considerar o texto + contexto dos anexos?
+      // Por enquanto, geramos embedding apenas do texto para simplificar a busca semântica.
+      // Futuramente, poderíamos descrever as imagens e embedar a descrição.
+      if (text && text.trim().length > 0) {
+        vector = await geminiService.generateEmbedding(text, apiKey);
+      }
+    } catch (error) {
+      console.error("[Service] Falha ao gerar embedding para mensagem:", error);
+      // Prossegue sem vetor
+    }
   }
-
-  if (!apiKey) {
-    console.warn("[Service] API Key não encontrada para gerar embedding. Tentando inserir sem vetor (pode falhar se DB exigir).");
-    // Se não tiver key, não gera embedding. O LanceDB pode reclamar se o schema exigir vetor.
-    // Assumindo que o schema exige, vamos lançar erro para forçar o usuário a configurar.
-    throw new Error("API Key necessária para salvar mensagem (geração de embedding). Configure no chat.");
-  }
-
-  const vector = await geminiService.generateEmbedding(text, apiKey);
-  const messageid = uuidv4();
 
   const record = {
     text,
     vector,
-    messageid,
+    messageid: uuidv4(),
     role,
     createdAt: Date.now(),
-    attachments: JSON.stringify(attachments)
+    attachments: JSON.stringify(attachments) // Salva anexos como string JSON
   };
+
   await lanceDBService.insertRecord(chatToken, collectionName, record);
-  return messageid;
+  return record.messageid;
 }
 
 /**
  * Edita uma mensagem existente.
+ * @param {string} chatToken
+ * @param {string} messageid
+ * @param {string} newText
  */
-async function editMessage(chatToken, messageid, newContent) {
-  console.log(`[Service] Editando mensagem com id: ${messageid} `);
+async function editMessage(chatToken, messageid, newText) {
+  // Precisa regenerar embedding se tiver API Key configurada no chat
+  const metadata = await chatStorage.getChatMetadata(chatToken);
+  const apiKey = metadata.config.apiKey;
 
-  const apiKey = await getChatApiKey(chatToken);
-  if (!apiKey) {
-    throw new Error("API Key necessária para editar mensagem.");
+  let newVector = null;
+  if (apiKey && newText && newText.trim().length > 0) {
+    try {
+      newVector = await geminiService.generateEmbedding(newText, apiKey);
+    } catch (e) {
+      console.error("[Service] Erro ao regenerar embedding na edição:", e);
+    }
   }
 
-  const newVector = await geminiService.generateEmbedding(newContent, apiKey);
-  const wasUpdated = await lanceDBService.updateRecordByMessageId(
-    chatToken,
-    messageid,
-    newContent,
-    newVector
-  );
+  // Usa o serviço do LanceDB para atualizar
+  const wasUpdated = await lanceDBService.updateRecordByMessageId(chatToken, messageid, newText, newVector);
+
+  if (wasUpdated) {
+    console.log(`[Service] Mensagem ${messageid} editada com sucesso.`);
+  } else {
+    console.warn(`[Service] Falha ao editar mensagem ${messageid} (não encontrada?).`);
+  }
+
   return wasUpdated;
 }
 
 /**
  * Deleta uma mensagem específica.
+ * @param {string} chatToken
+ * @param {string} messageid
  */
 async function deleteMessage(chatToken, messageid) {
-  console.log(`[Service] Deletando mensagem ID: ${messageid} `);
   return await lanceDBService.deleteRecordByMessageId(chatToken, messageid);
 }
 
 /**
- * Busca por mensagens semanticamente similares.
+ * Busca mensagens semanticamente.
+ * @param {string} chatToken
+ * @param {string} collectionName
+ * @param {string} queryText
+ * @param {number} limit
+ * @param {string} apiKey
  */
-async function searchMessages(chatToken, collectionName, queryVector) {
-  console.log(
-    `[Service] Buscando na coleção '${collectionName}' usando vetor direto.`
-  );
-  const results = await lanceDBService.searchByVector(
-    chatToken,
-    collectionName,
-    queryVector
-  );
+async function searchMessages(chatToken, collectionName, queryText, limit = 5, apiKey) {
+  if (!apiKey) throw new Error("API Key necessária para busca semântica.");
 
-  // Injeta a categoria (nome da coleção) nos resultados
-  return results.map(item => ({ ...item, category: collectionName }));
+  const queryVector = await geminiService.generateEmbedding(queryText, apiKey);
+
+  // Usa o serviço do LanceDB para buscar
+  const results = await lanceDBService.searchByVector(chatToken, collectionName, queryVector);
+  return results.slice(0, limit);
 }
 
 /**
- * Orquestra a geração de uma resposta de IA usando RAG.
- * Agora suporta configurações dinâmicas por chat e Function Calling.
+ * Lógica principal de geração de resposta (RAG + Chat).
  */
-async function handleChatGeneration(
-  chatToken,
-  userMessage,
-  previousVectorMemory = [],
-  files = []
-) {
-  // --- ETAPA 0: Carregar Configurações do Chat ---
+async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, files = []) {
+  // 1. Carrega metadados e valida API Key
   const chatMetadata = await chatStorage.getChatMetadata(chatToken);
+  if (!chatMetadata) throw new Error("Chat não encontrado.");
 
-  // Fallback para configs globais se não encontrar metadados
-  const chatConfig = chatMetadata?.config || {
-    modelName: "gemini-2.5-flash",
-    temperature: 0.7,
-    systemInstruction: config.systemInstructionTemplate,
-    apiKey: ""
-  };
+  const { apiKey, modelName, temperature, systemInstruction } = chatMetadata.config;
+  if (!apiKey) throw new Error("API Key não configurada neste chat.");
 
-  const apiKey = chatConfig.apiKey;
-  if (!apiKey) {
-    throw new Error("API Key não configurada para este chat. Por favor, adicione nas configurações.");
-  }
-
-  // --- ETAPA 1: Salvar mensagem do usuário no histórico ---
-  const attachments = files.map(file => {
-    // Salvar arquivo no disco para preview
-    try {
-      const uploadDir = path.join(__dirname, "../../uploads");
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      const filePath = path.join(uploadDir, file.originalname);
-      fs.writeFileSync(filePath, file.buffer);
-      console.log(`[Service] Arquivo salvo em: ${filePath}`);
-    } catch (err) {
-      console.error("[Service] Erro ao salvar arquivo no disco:", err);
-    }
-
-    return {
-      mimeType: file.mimetype,
-      data: file.buffer.toString("base64")
-    };
-  });
+  // 2. Salva mensagem do usuário no histórico
+  // Processa anexos se houver
+  const attachments = files.map(f => ({
+    name: f.originalname,
+    mimeType: f.mimetype,
+    data: f.buffer.toString("base64")
+  }));
 
   await addMessage(chatToken, "historico", userMessage, "user", attachments, apiKey);
 
-  const fullHistoryRecords = await lanceDBService.getAllRecordsFromCollection(
-    chatToken,
-    "historico"
-  );
+  // 3. Recupera Memória (RAG)
+  // Busca em 'fatos' e 'conceitos' usando o vetor da mensagem do usuário (se tiver texto)
+  let contextText = "";
+  let displayMemory = [];
+  let uniqueResults = []; // Para uso nas tools
 
-  const {
-    limitedHistory: conversationHistory,
-    wordCount: conversationWordCount,
-  } = getHistoryWithWordLimit(fullHistoryRecords, config.historyWordLimit);
+  if (userMessage && userMessage.trim().length > 0) {
+    const facts = await searchMessages(chatToken, "fatos", userMessage, 3, apiKey);
+    const concepts = await searchMessages(chatToken, "conceitos", userMessage, 3, apiKey);
 
-  const historyText = conversationHistory.map((msg) => msg.text).join("\n");
-  const shortHistoryIds = new Set(conversationHistory.map((msg) => msg.messageid));
+    // Combina e formata
+    const allMemories = [...facts, ...concepts];
 
-  // --- ETAPA 2: Embedding do contexto ---
-  const previousMemoryText = previousVectorMemory.map((mem) => mem.text).join("\n");
-  const contextForVectorQuery = previousMemoryText + "\n\n" + historyText;
+    // Remove duplicatas baseadas no ID e filtra score baixo se necessário
+    const seenIds = new Set();
+    uniqueResults = allMemories.filter(m => {
+      if (seenIds.has(m.messageid)) return false;
+      seenIds.add(m.messageid);
+      return true; // m.score < 1.5? (LanceDB score é distância, menor é melhor? Verificar métrica. Default L2. Menor = mais perto)
+    });
 
-  console.log("[Service] Gerando embedding para busca vetorial...");
-  const vectorQuery = await geminiService.generateEmbedding(contextForVectorQuery, apiKey);
+    if (uniqueResults.length > 0) {
+      contextText = "Memórias Relevantes recuperadas do banco de dados:\n" +
+        uniqueResults.map(m => `- ${m.text}`).join("\n");
 
-  // --- ETAPA 3: Busca vetorial ---
-  const searchPromises = config.collectionNames.map((collectionName) =>
-    searchMessages(chatToken, collectionName, vectorQuery)
-  );
-
-  const searchResultsArrays = await Promise.all(searchPromises);
-  let combinedResults = [].concat(...searchResultsArrays);
-
-  // --- ETAPA 4: Construir Memória Vetorial ---
-  combinedResults.sort((a, b) => b._score - a._score);
-
-  // Deduplicar resultados
-  const uniqueResults = Array.from(
-    new Map(combinedResults.map((item) => [item.text, item])).values()
-  );
-
-  // Filtra resultados que já estão no histórico recente (shortHistoryIds)
-  const uniqueFilteredResults = uniqueResults.filter(
-    (item) => !shortHistoryIds.has(item.messageid)
-  );
-
-  // 4.1 Memória para Exibição (UI) - Retorna os Top 20 relevantes (já filtrados)
-  const displayMemory = uniqueFilteredResults.slice(0, 20);
-
-  // 4.2 Memória para o Prompt (LLM) - Usa a lista filtrada
-  const filteredForPrompt = uniqueFilteredResults;
-
-  let promptMemory = [];
-  let newVectorMemoryText = "";
-  let memoryWordCount = 0;
-  const wordCounter = (text) => (text ? text.trim().split(/\s+/).length : 0);
-
-  for (const result of filteredForPrompt) {
-    const wordsInResult = wordCounter(result.text);
-    if (memoryWordCount + wordsInResult <= config.vectorMemoryWordLimit) {
-      promptMemory.push(result);
-      // Injeta ID e Categoria no texto visível para o LLM
-      newVectorMemoryText += `[ID: ${result.messageid}] [${result.category.toUpperCase()}] ${result.text} \n-- -\n`;
-      memoryWordCount += wordsInResult;
-    } else {
-      break;
+      displayMemory = uniqueResults.map(m => ({
+        messageid: m.messageid,
+        text: m.text,
+        score: m._distance, // LanceDB retorna _distance
+        category: facts.includes(m) ? "fatos" : "conceitos" // Simplificação
+      }));
     }
   }
 
-  // --- ETAPA 5: Preparar System Instruction Dinâmica ---
-  const template = chatConfig.systemInstruction || config.systemInstructionTemplate;
-  const systemInstruction = template.replace(
-    "{vector_memory}",
-    newVectorMemoryText || "Nenhuma informação contextual encontrada."
-  );
+  // 4. Monta Prompt com Histórico Recente
+  // Carrega histórico recente para contexto conversacional
+  const historyRecords = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
+  // Ordena por data
+  historyRecords.sort((a, b) => a.createdAt - b.createdAt);
 
-  // Prepara o histórico inicial para o modelo
-  const formattedHistory = conversationHistory.map((record) => {
-    const parts = [{ text: record.text }];
-    if (record.attachments) {
+  // Pega últimas N mensagens para não estourar contexto (simplificado)
+  const recentHistory = historyRecords.slice(-20);
+
+  // Converte para formato do Gemini
+  const conversationHistory = recentHistory.map(r => {
+    const parts = [{ text: r.text }];
+    // Se tiver anexos (imagens), adiciona
+    if (r.attachments) {
       try {
-        const parsedAttachments = JSON.parse(record.attachments);
-        for (const att of parsedAttachments) {
-          parts.push({
-            inlineData: {
-              mimeType: att.mimeType,
-              data: att.data
-            }
-          });
-        }
-      } catch (e) {
-        console.error("Error parsing attachments:", e);
-      }
+        const atts = JSON.parse(r.attachments);
+        atts.forEach(a => {
+          if (a.mimeType.startsWith("image/")) {
+            parts.push({
+              inlineData: {
+                mimeType: a.mimeType,
+                data: a.data
+              }
+            });
+          }
+        });
+      } catch (e) { console.error("Erro ao parsear anexos:", e); }
     }
     return {
-      role: record.role || "user",
-      parts: parts,
+      role: r.role === "user" ? "user" : "model",
+      parts: parts
     };
   });
 
-  // --- ETAPA 6: Loop de Geração (Suporte a Function Calling) ---
-  const generationConfig = {
-    modelName: chatConfig.modelName,
-    temperature: chatConfig.temperature,
-    tools: tools, // Injeta as ferramentas
-    apiKey: apiKey // Passa a API Key
+  // Insere contexto RAG no início ou como mensagem de sistema adicional?
+  // Vamos inserir como uma mensagem de sistema "injetada" ou user message oculta.
+  // Melhor: Adicionar ao systemInstruction ou como primeira mensagem user.
+  // Aqui, vamos anexar à última mensagem do usuário ou criar uma mensagem de contexto.
+  // Estratégia: System Instruction Dinâmico.
+
+  let finalSystemInstruction = systemInstruction;
+  if (contextText) {
+    finalSystemInstruction += "\n\n" + contextText;
+  }
+
+  // 5. Chama Gemini com Tools
+  const tools = [
+    {
+      function_declarations: [
+        {
+          name: "insert_fact",
+          description: "Salva um fato importante, regra de mundo ou acontecimento na memória de longo prazo (coleção 'fatos'). Use isso para coisas concretas que aconteceram.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              text: { type: "STRING", description: "O conteúdo do fato a ser memorizado." }
+            },
+            required: ["text"]
+          }
+        },
+        {
+          name: "insert_concept",
+          description: "Salva um conceito, explicação abstrata, traço de personalidade ou lore na memória de longo prazo (coleção 'conceitos').",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              text: { type: "STRING", description: "O conteúdo do conceito a ser memorizado." }
+            },
+            required: ["text"]
+          }
+        },
+        {
+          name: "roll_dice",
+          description: "Realiza uma rolagem de dados de RPG (ex: 1d20, 2d6+3, 4dF). Retorna o resultado.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              count: { type: "INTEGER", description: "Número de dados." },
+              type: { type: "STRING", description: "Tipo do dado (20, 6, 100, F para Fudge/Fate)." },
+              modifier: { type: "INTEGER", description: "Modificador a ser somado ao total (opcional)." }
+            },
+            required: ["count", "type"]
+          }
+        },
+        {
+          name: "generate_image",
+          description: "Gera uma imagem baseada em uma descrição (prompt) usando IA. Use quando o usuário pedir para 'desenhar', 'criar imagem', 'mostrar como é', etc.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              prompt: { type: "STRING", description: "Descrição detalhada da imagem a ser gerada." }
+            },
+            required: ["prompt"]
+          }
+        },
+        {
+          name: "edit_memory",
+          description: "Edita o texto de uma memória existente (fato ou conceito) ou mensagem do histórico. Use quando o usuário corrigir uma informação ou quando um fato mudar.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              messageid: { type: "STRING", description: "O ID da mensagem/memória a ser editada." },
+              new_text: { type: "STRING", description: "O novo texto atualizado." }
+            },
+            required: ["messageid", "new_text"]
+          }
+        },
+        {
+          name: "delete_memories",
+          description: "Remove memórias (fatos ou conceitos) ou mensagens que não são mais verdadeiras ou relevantes. Use APENAS quando tiver certeza que a informação deve ser esquecida.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              messageids: {
+                type: "ARRAY",
+                items: { type: "STRING" },
+                description: "Lista de IDs das mensagens/memórias a serem deletadas."
+              }
+            },
+            required: ["messageids"]
+          }
+        }
+      ]
+    }
+  ];
+
+  // Inicia Chat Session via wrapper do serviço
+  const generationOptions = {
+    modelName,
+    temperature,
+    tools,
+    apiKey
   };
 
-  let finalModelResponseText = "";
   let loopCount = 0;
-  const MAX_LOOPS = 5; // Evita loops infinitos
-  let pendingDeletionsForResponse = null; // Variável para armazenar deleções pendentes
+  let finalModelResponseText = "";
+  let generatedMessages = [];
+  let pendingDeletionsForResponse = null;
 
-  // Array para armazenar todas as mensagens geradas neste ciclo (ferramentas + resposta final)
-  const generatedMessages = [];
+  // Primeira chamada
+  let currentResponse = await geminiService.generateChatResponse(conversationHistory, finalSystemInstruction, generationOptions);
 
-  while (loopCount < MAX_LOOPS) {
-    if (loopCount > 0) {
-      console.log(`[Service] Loop ${loopCount}: formattedHistory length: ${formattedHistory.length}`);
-      const lastMsg = formattedHistory[formattedHistory.length - 1];
-      console.log(`[Service] Last message role: ${lastMsg.role}`);
-      if (lastMsg.role === 'model' && lastMsg.parts) {
-        console.log(`[Service] Last model parts:`, JSON.stringify(lastMsg.parts, null, 2));
-      }
-    }
+  while (loopCount < 5) {
+    const { text, functionCalls, parts } = currentResponse;
 
-    const response = await geminiService.generateChatResponse(
-      formattedHistory,
-      systemInstruction,
-      generationConfig
-    );
-
-    const { text, functionCalls, parts } = response;
-
-    // Se não houver chamadas de função, terminamos
     if (!functionCalls || functionCalls.length === 0) {
+      // Texto final
       finalModelResponseText = text;
       break;
     }
 
-    // Se houver texto junto com a function call, adicionamos ao histórico
-    // Se parts vier preenchido (novo padrão), usamos ele. 
-    // Caso contrário (fallback), reconstruímos.
-    let modelTurnParts = parts;
-
-    if (!modelTurnParts || modelTurnParts.length === 0) {
-      modelTurnParts = [];
-      if (text) modelTurnParts.push({ text });
-      for (const call of functionCalls) {
-        // Injeta assinatura dummy se não houver (exigido pelo Gemini 3)
-        // Ver: https://ai.google.dev/gemini-api/docs/thought-signatures#migrating_from_other_models
-        const funcCallObj = { ...call };
-
-        modelTurnParts.push({
-          functionCall: funcCallObj,
-          thoughtSignature: "context_engineering_is_the_way_to_go"
-        });
-      }
-    } else {
-      // Se usamos parts originais, verificamos se precisamos injetar a assinatura também
-      modelTurnParts = modelTurnParts.map(part => {
-        // Verifica se é uma part de functionCall
-        if (part.functionCall) {
-          // Se já tem a assinatura no nível correto (irmão de functionCall), mantém
-          if (part.thoughtSignature) {
-            return part;
-          }
-          // Se não tem, verifica se está aninhado incorretamente (legado) e corrige, ou injeta dummy
-          return {
-            ...part,
-            thoughtSignature: part.functionCall.thoughtSignature || "context_engineering_is_the_way_to_go"
-          };
-        }
-        return part;
-      });
-    }
-
-    formattedHistory.push({ role: "model", parts: modelTurnParts });
-
-    // Executa as funções
+    // Executa Tools
     const functionResponseParts = [];
     for (const call of functionCalls) {
-      const { name, args } = call;
-      let result = {};
+      const name = call.name;
+      const args = call.args;
+      let toolResult = {};
 
       console.log(`[Service] Executing tool: ${name} with args:`, args);
 
       try {
         if (name === "insert_fact") {
-          await addMessage(chatToken, "fatos", args.text, "model", [], apiKey);
-          result = { status: "success", message: "Fato inserido com sucesso." };
+          const msgId = await addMessage(chatToken, "fatos", args.text, "model", [], apiKey);
+          toolResult = { status: "success", message: "Fato inserido com sucesso." };
+
+          // Adiciona à memória de exibição para atualização imediata na UI
+          displayMemory.push({
+            messageid: msgId,
+            text: args.text,
+            score: 0, // Score 0 para indicar que é novo/relevante
+            category: "fatos"
+          });
+
         } else if (name === "insert_concept") {
-          await addMessage(chatToken, "conceitos", args.text, "model", [], apiKey);
-          result = { status: "success", message: "Conceito inserido com sucesso." };
+          const msgId = await addMessage(chatToken, "conceitos", args.text, "model", [], apiKey);
+          toolResult = { status: "success", message: "Conceito inserido com sucesso." };
+
+          // Adiciona à memória de exibição para atualização imediata na UI
+          displayMemory.push({
+            messageid: msgId,
+            text: args.text,
+            score: 0,
+            category: "conceitos"
+          });
+
         } else if (name === "roll_dice") {
-          // Lógica de rolagem no backend
           const count = args.count;
-          const type = args.type; // '20', '6', 'F'
+          const type = args.type;
           const modifier = args.modifier || 0;
 
           let total = 0;
@@ -593,11 +467,8 @@ async function handleChatGeneration(
           const finalTotal = total + modifier;
           const rollString = rolls.join(', ');
           const modString = modifier ? (modifier > 0 ? `+${modifier}` : `${modifier}`) : '';
-
-          // Formato: "1d20 = 20 { 20 }"
           const resultText = `${count}d${type}${modString} = ${finalTotal} { ${rollString} }`;
 
-          // PERSISTE O RESULTADO COMO MENSAGEM VISÍVEL
           const rollMsgId = await addMessage(chatToken, "historico", resultText, "model", [], apiKey);
 
           generatedMessages.push({
@@ -607,7 +478,7 @@ async function handleChatGeneration(
             createdAt: Date.now()
           });
 
-          result = { result: resultText };
+          toolResult = { result: resultText };
         } else if (name === "generate_image") {
           const base64Image = await geminiService.generateImage(args.prompt, apiKey);
           const attachments = [{
@@ -625,66 +496,69 @@ async function handleChatGeneration(
             attachments: JSON.stringify(attachments)
           });
 
-          result = { status: "success", message: "Imagem gerada e enviada ao usuário." };
+          toolResult = { status: "success", message: "Imagem gerada e enviada ao usuário." };
         } else if (name === "edit_memory") {
           const wasUpdated = await editMessage(chatToken, args.messageid, args.new_text);
           if (wasUpdated) {
-            result = { status: "success", message: "Memória atualizada com sucesso." };
+            toolResult = { status: "success", message: "Memória atualizada com sucesso." };
           } else {
-            result = { status: "error", message: "Memória não encontrada ou erro ao atualizar." };
+            toolResult = { status: "error", message: "Memória não encontrada ou erro ao atualizar." };
           }
         } else if (name === "delete_memories") {
-          // Não deleta imediatamente. Retorna lista para confirmação do usuário.
           const ids = args.messageids || [];
           const memoriesToDelete = [];
 
           for (const id of ids) {
-            // Tenta encontrar na memória carregada no contexto primeiro (mais rápido)
             let memory = uniqueResults.find(m => m.messageid === id);
-
             if (memory) {
               memoriesToDelete.push({ messageid: id, text: memory.text, category: memory.category });
             } else {
-              // Fallback: tenta buscar no DB (custoso, mas necessário para consistência)
-              // Como não temos getById global, vamos pular e mandar só ID com texto "Carregando..."
               memoriesToDelete.push({ messageid: id, text: "(Memória não encontrada no contexto recente)", category: "?" });
             }
           }
 
-          result = {
+          toolResult = {
             status: "pending_confirmation",
             message: "Aguardando confirmação do usuário para deletar memórias.",
             pendingDeletions: memoriesToDelete
           };
-
-          // Armazena as deleções pendentes para retornar ao frontend
           pendingDeletionsForResponse = memoriesToDelete;
-
         } else {
-          result = { error: "Function not found" };
+          toolResult = { error: "Function not found" };
         }
       } catch (err) {
         console.error(`[Service] Error executing tool ${name}:`, err);
-        result = { error: err.message };
+        toolResult = { error: err.message };
       }
 
       functionResponseParts.push({
         functionResponse: {
           name: name,
-          response: result
+          response: toolResult
         }
       });
     }
 
-    // Adiciona a resposta da função ao histórico
-    formattedHistory.push({ role: "function", parts: functionResponseParts });
+    // Adiciona a chamada da função (model turn)
+    conversationHistory.push({
+      role: "model",
+      parts: parts // Parts originais da resposta do modelo
+    });
+
+    // Adiciona a resposta da função (function response)
+    conversationHistory.push({
+      role: "function",
+      parts: functionResponseParts
+    });
+
+    // Chama o modelo novamente com o histórico atualizado
+    currentResponse = await geminiService.generateChatResponse(conversationHistory, finalSystemInstruction, generationOptions);
 
     loopCount++;
   }
 
-  // --- ETAPA 7: Salvar resposta final ---
+  // Salva resposta final
   const modelResponse = finalModelResponseText || "Desculpe, não consegui processar sua solicitação.";
-
   const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model", [], apiKey);
 
   generatedMessages.push({
@@ -694,7 +568,7 @@ async function handleChatGeneration(
     createdAt: Date.now()
   });
 
-  // Atualiza timestamp e título se necessário
+  // Atualiza metadados
   if (chatMetadata) {
     chatMetadata.updatedAt = new Date().toISOString();
     if (chatMetadata.title === "Novo Chat" && userMessage.length > 2) {
@@ -703,12 +577,16 @@ async function handleChatGeneration(
     await chatStorage.saveChatMetadata(chatToken, chatMetadata, chatMetadata.userId);
   }
 
+  // Recarrega histórico do banco para garantir ordem e consistência
+  const finalHistory = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
+  finalHistory.sort((a, b) => a.createdAt - b.createdAt);
+
   return {
     modelResponse,
-    history: conversationHistory.concat(generatedMessages),
-    wordCount: conversationWordCount + wordCounter(modelResponse),
+    history: finalHistory,
+    wordCount: wordCounter(modelResponse),
     newVectorMemory: displayMemory,
-    pendingDeletions: pendingDeletionsForResponse // Retorna as deleções pendentes explicitamente
+    pendingDeletions: pendingDeletionsForResponse
   };
 }
 
@@ -720,6 +598,109 @@ async function handleChatGeneration(
 async function renameChat(chatToken, newTitle) {
   console.log(`[Service] Renomeando chat ${chatToken} para "${newTitle}"...`);
   return await chatStorage.updateChatTitle(chatToken, newTitle);
+}
+
+/**
+ * Importa um chat a partir de uma lista de mensagens.
+ * @param {string} userId
+ * @param {Array} messages
+ * @param {string} apiKey
+ */
+async function importChat(userId, messages, apiKey) {
+  console.log(`[Service] Importando chat para user: ${userId} com ${messages.length} mensagens.`);
+
+  // 1. Cria novo chat
+  const chatToken = await createChat(userId);
+
+  // 2. Atualiza API Key se fornecida
+  if (apiKey) {
+    await updateChatConfig(chatToken, { apiKey });
+  }
+
+  // 3. Insere mensagens no histórico
+  for (const msg of messages) {
+    // Tenta processar anexos se existirem
+    let attachments = [];
+    if (msg.attachments) {
+      try {
+        attachments = typeof msg.attachments === 'string' ? JSON.parse(msg.attachments) : msg.attachments;
+      } catch (e) {
+        console.warn("[Service] Erro ao processar anexos na importação:", e);
+      }
+    }
+
+    // Adiciona mensagem (gera embedding se tiver API Key)
+    await addMessage(chatToken, "historico", msg.text, msg.role, attachments, apiKey);
+  }
+
+  return chatToken;
+}
+
+/**
+ * Cria uma branch (bifurcação) de um chat existente a partir de uma mensagem específica.
+ * @param {string} originalChatToken 
+ * @param {string} targetMessageId 
+ * @param {string} userId 
+ */
+async function branchChat(originalChatToken, targetMessageId, userId) {
+  console.log(`[Service] Criando branch do chat ${originalChatToken} a partir da mensagem ${targetMessageId}`);
+
+  // 1. Recupera metadados do chat original
+  const originalMetadata = await chatStorage.getChatMetadata(originalChatToken);
+  if (!originalMetadata) {
+    throw new Error("Chat original não encontrado.");
+  }
+
+  // 2. Recupera histórico completo para encontrar a mensagem alvo e definir o cutoffTime
+  const fullHistory = await lanceDBService.getAllRecordsFromCollection(originalChatToken, "historico");
+  const targetMessage = fullHistory.find(m => m.messageid === targetMessageId);
+
+  if (!targetMessage) {
+    throw new Error("Mensagem alvo não encontrada no histórico.");
+  }
+
+  const cutoffTime = targetMessage.createdAt;
+  console.log(`[Service] Cutoff time definido: ${cutoffTime} (Msg ID: ${targetMessageId})`);
+
+  // 3. Cria o novo chat
+  const newChatToken = await createChat(userId);
+
+  // 4. Copia e salva as configurações do chat original
+  const newMetadata = await chatStorage.getChatMetadata(newChatToken);
+  newMetadata.title = `${originalMetadata.title} (Branch)`;
+  newMetadata.config = { ...originalMetadata.config }; // Copia profunda simples das configs
+  await chatStorage.saveChatMetadata(newChatToken, newMetadata, userId);
+
+  // 5. Filtra e copia dados das coleções (historico, fatos, conceitos)
+  // Apenas registros criados ANTES ou NO MESMO MOMENTO da mensagem alvo.
+  for (const collectionName of config.collectionNames) {
+    const originalRecords = await lanceDBService.getAllRecordsFromCollection(originalChatToken, collectionName);
+
+    const filteredRecords = originalRecords.filter(record => {
+      // Se tiver createdAt, usa. Se não, assume que deve manter (ou descartar? melhor manter por segurança se for antigo)
+      // Mas nosso sistema sempre põe createdAt.
+      return record.createdAt <= cutoffTime;
+    });
+
+    console.log(`[Service] Copiando ${filteredRecords.length} registros da coleção '${collectionName}' para o novo chat.`);
+
+    for (const record of filteredRecords) {
+      // Sanitiza o registro antes de inserir
+      const cleanRecord = {
+        text: record.text,
+        role: record.role,
+        messageid: record.messageid,
+        createdAt: record.createdAt,
+        // Garante que o vetor seja um array simples de números, se existir
+        vector: record.vector ? Array.from(record.vector) : null,
+        attachments: record.attachments // Mantém anexos
+      };
+
+      await lanceDBService.insertRecord(newChatToken, collectionName, cleanRecord);
+    }
+  }
+
+  return newChatToken;
 }
 
 module.exports = {
@@ -736,4 +717,5 @@ module.exports = {
   searchMessages,
   handleChatGeneration,
   importChat,
+  branchChat
 };

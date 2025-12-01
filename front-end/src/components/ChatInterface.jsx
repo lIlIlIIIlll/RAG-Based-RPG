@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import ChatList from "./ChatList.jsx";
 import ChatView from "./ChatView.jsx";
 import { createChat } from "../services/api.js";
@@ -7,15 +8,30 @@ import { MessageSquarePlus, Terminal } from "lucide-react";
 import styles from "./ChatInterface.module.css";
 
 function ChatInterface() {
-    const [activeChatToken, setActiveChatToken] = useState(null);
+    const { chatId } = useParams();
+    const navigate = useNavigate();
+    const [activeChatToken, setActiveChatToken] = useState(chatId || null);
     const [isCreatingChat, setIsCreatingChat] = useState(false);
     const { addToast } = useToast();
+
+    // Sincroniza o activeChatToken com a URL
+    useEffect(() => {
+        setActiveChatToken(chatId || null);
+    }, [chatId]);
+
+    const handleSelectChat = (token) => {
+        if (token) {
+            navigate(`/c/${token}`);
+        } else {
+            navigate('/chat');
+        }
+    };
 
     const handleNewChat = async () => {
         setIsCreatingChat(true);
         try {
             const token = await createChat();
-            setActiveChatToken(token);
+            navigate(`/c/${token}`);
             // O ChatList irá recarregar automaticamente devido à mudança de token ou prop
         } catch (err) {
             addToast({
@@ -32,7 +48,7 @@ function ChatInterface() {
             {/* Sidebar de Navegação */}
             <ChatList
                 activeChatToken={activeChatToken}
-                onSelectChat={setActiveChatToken}
+                onSelectChat={handleSelectChat}
                 onNewChat={handleNewChat}
                 isCreating={isCreatingChat}
             />

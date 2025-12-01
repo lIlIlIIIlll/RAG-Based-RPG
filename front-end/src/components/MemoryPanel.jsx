@@ -141,7 +141,7 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
           <div className={styles.headerTop}>
             <h3>
               <Brain size={16} color="var(--accent-primary)" />
-              Memória RAG
+              Neocórtex
             </h3>
 
             {/* Botão de Adicionar (Sempre renderizado, mas invisível em Histórico) */}

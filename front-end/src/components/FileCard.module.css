@@ -34,6 +34,8 @@
     justify-content: center;
     margin-right: 0.75rem;
     flex-shrink: 0;
+    overflow: hidden;
+    /* Ensure image doesn't overflow */
 }
 
 .pdfIcon {
@@ -46,6 +48,12 @@
 
 .genericIcon {
     background: linear-gradient(135deg, #808080, #4d4d4d);
+}
+
+.thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .info {

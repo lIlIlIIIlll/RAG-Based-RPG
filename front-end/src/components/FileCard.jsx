@@ -2,7 +2,7 @@ import React from "react";
 import { FileText, X, Image as ImageIcon } from "lucide-react";
 import styles from "./FileCard.module.css";
 
-const FileCard = ({ fileName, fileType, onRemove, onClick, isUploading = false }) => {
+const FileCard = ({ fileName, fileType, onRemove, onClick, isUploading = false, url }) => {
     const isPdf = fileName.toLowerCase().endsWith(".pdf");
     const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(fileName);
     const extension = fileName.split(".").pop().toUpperCase();
@@ -15,7 +15,9 @@ const FileCard = ({ fileName, fileType, onRemove, onClick, isUploading = false }
             tabIndex={onClick ? 0 : undefined}
         >
             <div className={`${styles.iconContainer} ${isPdf ? styles.pdfIcon : isImage ? styles.imageIcon : styles.genericIcon}`}>
-                {isImage ? (
+                {isImage && url ? (
+                    <img src={url} alt={fileName} className={styles.thumbnail} />
+                ) : isImage ? (
                     <ImageIcon size={24} color="white" />
                 ) : (
                     <FileText size={24} color="white" />

@@ -1,9 +1,21 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { X, Download } from "lucide-react";
 import styles from "./FilePreviewModal.module.css";
 
 const FilePreviewModal = ({ file, onClose }) => {
     if (!file) return null;
+
+    // Fecha ao pressionar ESC
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === "Escape") {
+                e.stopPropagation();
+                onClose();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown, { capture: true });
+        return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    }, [onClose]);
 
     const { name, type, url, content } = file;
     const isImage = type?.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(name);

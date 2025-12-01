@@ -1,5 +1,6 @@
 // src/components/ChatView.jsx
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import ChatWindow from "./ChatWindow.jsx";
 import MemoryPanel from "./MemoryPanel.jsx";
 import FilePreviewModal from "./FilePreviewModal.jsx";
@@ -10,7 +11,8 @@ import {
   deleteMessage,
   getChatHistory,
   apiClient,
-  deleteMemories
+  deleteMemories,
+  branchChat
 } from "../services/api.js";
 import ConfirmationModal from "./ConfirmationModal.jsx";
 import { useToast } from "../context/ToastContext";
@@ -23,6 +25,7 @@ const ChatView = ({ chatToken }) => {
   const [messages, setMessages] = useState([]);
   const [vectorMemory, setVectorMemory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const { confirm } = useConfirmation();
   const [diceAnimationData, setDiceAnimationData] = useState(null);
@@ -285,6 +288,22 @@ const ChatView = ({ chatToken }) => {
     setIsConfirmationModalOpen(true);
   };
 
+  const handleBranch = async (messageId) => {
+    if (!(await confirm("Criar um novo chat a partir desta mensagem?", "Confirmar Branch"))) return;
+
+    try {
+      setIsLoading(true);
+      const { chatToken: newChatToken } = await branchChat(chatToken, messageId);
+      addToast({ type: "success", message: "Chat bifurcado com sucesso!" });
+      navigate(`/c/${newChatToken}`);
+    } catch (error) {
+      console.error("Erro ao criar branch:", error);
+      addToast({ type: "error", message: "Erro ao criar branch do chat." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className={styles.chatViewContainer}>
       <ChatWindow
@@ -296,6 +315,7 @@ const ChatView = ({ chatToken }) => {
         onRegenerate={handleRegenerate}
         onPreviewFile={handlePreviewFile}
         onMassDelete={handleMassDelete}
+        onBranch={handleBranch}
       />
       <MemoryPanel chatToken={chatToken} vectorMemory={vectorMemory} />
 

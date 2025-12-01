@@ -39,6 +39,25 @@ const ConfigModal = ({ chatToken, onClose }) => {
     if (chatToken) loadConfig();
   }, [chatToken, addToast, onClose]);
 
+  // Fecha ao pressionar ESC
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation(); // Impede que outros listeners peguem o evento
+        onClose();
+      }
+    };
+    // Use capture: true para garantir que pegamos o evento antes de qualquer outra coisa
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [onClose]);
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -55,7 +74,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
   if (loading) return null;
 
   return (
-    <div className={styles.overlay}>
+    <div className={styles.overlay} onClick={handleBackdropClick}>
       <div className={styles.modal}>
         <div className={styles.header}>
           <h2>Configurações do Chat</h2>

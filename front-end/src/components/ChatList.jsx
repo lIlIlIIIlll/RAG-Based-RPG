@@ -279,6 +279,17 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
                       <Edit2 size={14} />
                     </button>
                     <button
+                      className={styles.actionBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectChat(chat.id);
+                        handleOpenConfig();
+                      }}
+                      title="Configurações"
+                    >
+                      <Settings size={14} />
+                    </button>
+                    <button
                       className={styles.deleteBtn}
                       onClick={(e) => handleDelete(e, chat.id)}
                       title="Excluir Chat"
@@ -293,14 +304,6 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
         </div>
 
         <div className={styles.footer}>
-          <button
-            className={styles.footerBtn}
-            onClick={handleOpenConfig}
-            title="Configurações"
-          >
-            <Settings size={20} />
-            {!collapsed && <span>Configurações</span>}
-          </button>
           <button
             className={styles.footerBtn}
             onClick={handleLogout}

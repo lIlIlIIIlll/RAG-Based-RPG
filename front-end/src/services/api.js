@@ -2,7 +2,7 @@
 import axios from "axios";
 import log from "./logger";
 
-const API_BASE_URL = "https://n8n-dungeon-master-69-api.r954jc.easypanel.host/api";
+const API_BASE_URL = "http://localhost:3001/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -253,6 +253,17 @@ export const deleteMemories = async (chatToken, messageids) => {
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao deletar memórias.", "error", error);
+    throw error;
+  }
+};
+
+export const branchChat = async (chatToken, messageId) => {
+  const CONTEXT = "API:BRANCH_CHAT";
+  try {
+    const response = await apiClient.post(`/chat/${chatToken}/message/${messageId}/branch`);
+    return response.data;
+  } catch (error) {
+    log(CONTEXT, "ERRO: Falha ao criar branch do chat.", "error", error);
     throw error;
   }
 };

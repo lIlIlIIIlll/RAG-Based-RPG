@@ -2,9 +2,23 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const config = require("../config");
 
-// --- Helper de Retry ---
+// --- Helper de Retry e Timeout ---
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const withTimeout = (promise, ms) => {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Operation timed out after ${ms}ms`));
+    }, ms);
+  });
+
+  return Promise.race([
+    promise,
+    timeoutPromise
+  ]).finally(() => clearTimeout(timeoutId));
+};
 
 /**
  * Executa uma operação com retry exponencial.
@@ -62,7 +76,7 @@ async function generateEmbedding(text, apiKey) {
       const snippet = text ? text.substring(0, 50) : "";
       // console.log(`[Gemini] Gerando embedding para: "${snippet}..."`); // Comentado para reduzir ruído em retries
 
-      const result = await embeddingModel.embedContent(text);
+      const result = await withTimeout(embeddingModel.embedContent(text), 30000); // 30s timeout
       return result.embedding.values;
     } catch (error) {
       console.error("[Gemini] Erro ao gerar embedding:", error.message);
@@ -91,7 +105,7 @@ async function generateSearchQuery(contextText, apiKey) {
         contextText
       );
 
-      const result = await auxModel.generateContent(prompt);
+      const result = await withTimeout(auxModel.generateContent(prompt), 30000); // 30s timeout
       const response = result.response;
       const query = response.text();
 
@@ -141,9 +155,9 @@ async function generateChatResponse(history, systemInstruction, generationOption
 
       if (!history || history.length === 0) {
         // fallback: sem histórico
-        const result = await dynamicModel.generateContent(
+        const result = await withTimeout(dynamicModel.generateContent(
           "Inicie a conversa com o usuário."
-        );
+        ), 120000); // 120s timeout
         const response = result.response;
 
         let text = "";
@@ -165,16 +179,18 @@ async function generateChatResponse(history, systemInstruction, generationOption
       let result;
       // Se a última mensagem for do usuário e tiver texto simples, enviamos como string
       // Se for function response ou complexa, enviamos as parts
+      const timeoutMs = 120000; // 120s timeout
+
       if (lastTurn.parts && lastTurn.parts.length > 0) {
         // Verifica se é apenas texto simples
         if (lastTurn.parts.length === 1 && lastTurn.parts[0].text) {
-          result = await chat.sendMessage(lastTurn.parts[0].text);
+          result = await withTimeout(chat.sendMessage(lastTurn.parts[0].text), timeoutMs);
         } else {
-          result = await chat.sendMessage(lastTurn.parts);
+          result = await withTimeout(chat.sendMessage(lastTurn.parts), timeoutMs);
         }
       } else {
         // Fallback
-        result = await chat.sendMessage("...");
+        result = await withTimeout(chat.sendMessage("..."), timeoutMs);
       }
 
       const response = result.response;
@@ -186,8 +202,19 @@ async function generateChatResponse(history, systemInstruction, generationOption
         console.log("[Gemini] Resposta sem texto (provável function call pura).");
       }
 
-      const functionCalls = typeof response.functionCalls === 'function' ? response.functionCalls() : [];
       const parts = response.candidates?.[0]?.content?.parts || [];
+
+      // Extrai function calls manualmente para capturar thoughtSignature
+      const functionCalls = parts
+        .filter(part => part.functionCall)
+        .map(part => {
+          const fc = { ...part.functionCall };
+          // Se houver thoughtSignature, anexa ao objeto da chamada para ser tratado no controller/service
+          if (part.thoughtSignature) {
+            fc.thoughtSignature = part.thoughtSignature;
+          }
+          return fc;
+        });
 
       console.log(`[Gemini] Resposta recebida. Texto: "${text.substring(0, 50)}..." | FuncCalls: ${functionCalls ? functionCalls.length : 0}`);
       if (functionCalls && functionCalls.length > 0) {
@@ -219,7 +246,7 @@ async function generateImage(prompt, apiKey) {
       const genAI = getClient(apiKey);
       const imageModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
 
-      const result = await imageModel.generateContent(prompt);
+      const result = await withTimeout(imageModel.generateContent(prompt), 60000); // 60s timeout
       const response = result.response;
 
       // A resposta pode conter partes com texto ou inlineData (imagem)

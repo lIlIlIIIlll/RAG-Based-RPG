@@ -15,7 +15,8 @@ const ChatWindow = ({
     onDeleteMessage,
     onRegenerate,
     onPreviewFile,
-    onMassDelete
+    onMassDelete,
+    onBranch
 }) => {
     const [inputText, setInputText] = useState("");
     const [selectedFiles, setSelectedFiles] = useState([]);
@@ -96,6 +97,17 @@ const ChatWindow = ({
         }
     };
 
+    const handlePaste = (e) => {
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf("image") === 0) {
+                const blob = items[i].getAsFile();
+                setSelectedFiles((prev) => [...prev, blob]);
+                e.preventDefault();
+            }
+        }
+    };
+
     return (
         <div className={styles.chatWindow}>
             {/* Selection Toolbar */}
@@ -156,6 +168,7 @@ const ChatWindow = ({
                                     isSelectionMode={isSelectionMode}
                                     isSelected={selectedMessages.has(msg.messageid)}
                                     onToggleSelection={() => handleSelectMessage(msg.messageid)}
+                                    onBranch={onBranch}
                                 />
                             </div>
                         )}
@@ -223,6 +236,7 @@ const ChatWindow = ({
                         value={inputText}
                         onChange={handleInput}
                         onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
                         className={styles.textInput}
                         placeholder="Envie uma mensagem..."
                         rows={1}
