@@ -489,6 +489,15 @@ async function handleChatGeneration(
   const generatedMessages = [];
 
   while (loopCount < MAX_LOOPS) {
+    if (loopCount > 0) {
+      console.log(`[Service] Loop ${loopCount}: formattedHistory length: ${formattedHistory.length}`);
+      const lastMsg = formattedHistory[formattedHistory.length - 1];
+      console.log(`[Service] Last message role: ${lastMsg.role}`);
+      if (lastMsg.role === 'model' && lastMsg.parts) {
+        console.log(`[Service] Last model parts:`, JSON.stringify(lastMsg.parts, null, 2));
+      }
+    }
+
     const response = await geminiService.generateChatResponse(
       formattedHistory,
       systemInstruction,

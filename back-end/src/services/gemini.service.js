@@ -190,6 +190,9 @@ async function generateChatResponse(history, systemInstruction, generationOption
       const parts = response.candidates?.[0]?.content?.parts || [];
 
       console.log(`[Gemini] Resposta recebida. Texto: "${text.substring(0, 50)}..." | FuncCalls: ${functionCalls ? functionCalls.length : 0}`);
+      if (functionCalls && functionCalls.length > 0) {
+        console.log("[Gemini] Parts structure:", JSON.stringify(parts, null, 2));
+      }
 
       return {
         text,
