@@ -149,8 +149,9 @@ async function generateChatResponse(history, systemInstruction, generationOption
         let text = "";
         try { text = response.text(); } catch (e) { }
         const functionCalls = typeof response.functionCalls === 'function' ? response.functionCalls() : [];
+        const parts = response.candidates?.[0]?.content?.parts || [];
 
-        return { text, functionCalls };
+        return { text, functionCalls, parts };
       }
 
       // Separa histórico da última mensagem (padrão da lib Google)
@@ -186,12 +187,14 @@ async function generateChatResponse(history, systemInstruction, generationOption
       }
 
       const functionCalls = typeof response.functionCalls === 'function' ? response.functionCalls() : [];
+      const parts = response.candidates?.[0]?.content?.parts || [];
 
       console.log(`[Gemini] Resposta recebida. Texto: "${text.substring(0, 50)}..." | FuncCalls: ${functionCalls ? functionCalls.length : 0}`);
 
       return {
         text,
-        functionCalls
+        functionCalls,
+        parts
       };
     } catch (error) {
       console.error("[Gemini] Erro ao gerar resposta de chat:", error.message);

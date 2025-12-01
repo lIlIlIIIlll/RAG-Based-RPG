@@ -447,7 +447,7 @@ async function handleChatGeneration(
       generationConfig
     );
 
-    const { text, functionCalls } = response;
+    const { text, functionCalls, parts } = response;
 
     // Se não houver chamadas de função, terminamos
     if (!functionCalls || functionCalls.length === 0) {
@@ -456,11 +456,16 @@ async function handleChatGeneration(
     }
 
     // Se houver texto junto com a function call, adicionamos ao histórico
-    const modelTurnParts = [];
-    if (text) modelTurnParts.push({ text });
+    // Se parts vier preenchido (novo padrão), usamos ele. 
+    // Caso contrário (fallback), reconstruímos.
+    let modelTurnParts = parts;
 
-    for (const call of functionCalls) {
-      modelTurnParts.push({ functionCall: call });
+    if (!modelTurnParts || modelTurnParts.length === 0) {
+      modelTurnParts = [];
+      if (text) modelTurnParts.push({ text });
+      for (const call of functionCalls) {
+        modelTurnParts.push({ functionCall: call });
+      }
     }
 
     formattedHistory.push({ role: "model", parts: modelTurnParts });
