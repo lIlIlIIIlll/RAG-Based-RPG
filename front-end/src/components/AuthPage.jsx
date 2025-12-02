@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Terminal, ArrowRight, User, Mail, Lock, Sparkles } from 'lucide-react';
 import * as api from '../services/api';
 import styles from './AuthPage.module.css';
+import CinematicLoading from './CinematicLoading';
 
 const AuthPage = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -13,21 +14,60 @@ const AuthPage = () => {
         password: ''
     });
 
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState("");
+
+    const [loadingStatus, setLoadingStatus] = useState('loading'); // 'loading', 'success', 'error'
+    const [errorMessage, setErrorMessage] = useState("");
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
+        setLoadingStatus('loading');
+        setLoadingMessage(isLogin ? "Autenticando..." : "Criando sua conta...");
+        setErrorMessage("");
+
+        // Small delay for cinematic effect
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
         try {
             if (isLogin) {
                 const { token } = await api.login(formData.email, formData.password);
                 localStorage.setItem('token', token);
-                navigate('/chat');
+
+                // Anticipation phase
+                setLoadingStatus('anticipate-success');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                setLoadingStatus('success');
+                setLoadingMessage("Entrando no Reino...");
+                setTimeout(() => navigate('/chat'), 1500);
             } else {
                 const { token } = await api.register(formData.name, formData.email, formData.password);
                 localStorage.setItem('token', token);
-                navigate('/chat');
+
+                // Anticipation phase
+                setLoadingStatus('anticipate-success');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                setLoadingStatus('success');
+                setLoadingMessage("Preparando sua jornada...");
+                setTimeout(() => navigate('/chat'), 1500);
             }
         } catch (error) {
             console.error("Auth error:", error);
-            alert(error.response?.data?.error || "Authentication failed");
+
+            // Anticipation phase for error
+            setLoadingStatus('anticipate-error');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            setLoadingStatus('error');
+            setErrorMessage(error.response?.data?.error || "Falha na autenticação");
+
+            setTimeout(() => {
+                setIsLoading(false);
+                setLoadingStatus('loading'); // Reset for next time
+            }, 3000);
         }
     };
 
@@ -37,6 +77,13 @@ const AuthPage = () => {
 
     return (
         <div className={styles.container}>
+            {isLoading && (
+                <CinematicLoading
+                    message={loadingMessage}
+                    status={loadingStatus}
+                    errorMessage={errorMessage}
+                />
+            )}
             <div className={styles.backgroundEffects}>
                 <div className={styles.glowOrb1} />
                 <div className={styles.glowOrb2} />
@@ -107,7 +154,7 @@ const AuthPage = () => {
                                 />
                             </div>
 
-                            <button type="submit" className={styles.submitButton}>
+                            <button type="submit" className={styles.submitButton} disabled={isLoading}>
                                 <span>{isLogin ? 'Entrar' : 'Criar Conta'}</span>
                                 <ArrowRight size={20} />
                                 <div className={styles.buttonGlow} />
@@ -121,6 +168,7 @@ const AuthPage = () => {
                         <button
                             onClick={() => setIsLogin(!isLogin)}
                             className={styles.toggleButton}
+                            disabled={isLoading}
                         >
                             {isLogin ? "Não tem uma conta? Cadastre-se" : 'Já tem uma conta? Entrar'}
                         </button>

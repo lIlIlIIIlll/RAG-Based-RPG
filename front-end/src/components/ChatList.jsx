@@ -9,6 +9,7 @@ import { useToast } from "../context/ToastContext";
 import { useConfirmation } from "../context/ConfirmationContext";
 import ConfigModal from "./ConfigModal.jsx";
 import ApiKeyModal from "./ApiKeyModal.jsx";
+import CinematicLoading from "./CinematicLoading.jsx";
 import styles from "./ChatList.module.css";
 
 const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
@@ -20,6 +21,7 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
   const [pendingImportMessages, setPendingImportMessages] = useState([]);
   const [editingChatId, setEditingChatId] = useState(null);
   const [newTitle, setNewTitle] = useState("");
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { addToast } = useToast();
   const { confirm } = useConfirmation();
   const navigate = useNavigate();
@@ -106,6 +108,8 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
 
   const handleLogout = async () => {
     if (await confirm("Tem certeza que deseja sair?", "Sair")) {
+      setIsLoggingOut(true);
+      await new Promise(resolve => setTimeout(resolve, 2000));
       localStorage.removeItem("token");
       navigate("/");
     }
@@ -328,6 +332,8 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
           onConfirm={handleConfirmImport}
         />
       )}
+
+      {isLoggingOut && <CinematicLoading message="Saindo do Reino..." />}
     </>
   );
 };

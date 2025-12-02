@@ -1,0 +1,409 @@
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--bg-deep);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+}
+
+/* D20 Animation */
+.d20Container {
+    position: relative;
+    width: 220px;
+    height: 260px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.d20Svg {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+    transform-origin: center;
+    transition: stroke 0.3s ease, filter 0.3s ease;
+}
+
+.d20Container.loading .d20Svg,
+.d20Container.anticipate-success .d20Svg,
+.d20Container.anticipate-error .d20Svg {
+    animation: shake 0.5s infinite;
+}
+
+.d20Outline {
+    fill: rgba(255, 255, 255, 0.1);
+    transition: fill 0.3s ease;
+}
+
+.d20Inner {
+    opacity: 0.5;
+}
+
+.d20Number {
+    fill: #ffffff;
+    font-family: var(--font-main);
+    font-size: 13px;
+    font-weight: 400;
+    text-anchor: middle;
+    opacity: 1;
+    transition: opacity 0.3s ease, fill 0.3s ease;
+}
+
+.d20Glow {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, transparent 70%);
+    animation: pulseGlow 2s infinite ease-in-out;
+    z-index: -1;
+    opacity: 0.3;
+    /* White glow by default */
+}
+
+/* Anticipation States */
+.d20Container.anticipate-success .d20Glow {
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    animation: pulseFast 0.5s infinite ease-in-out;
+    opacity: 0.8;
+}
+
+.d20Container.anticipate-error .d20Glow {
+    background: radial-gradient(circle, rgba(255, 68, 68, 0.5) 0%, transparent 70%);
+    animation: pulseFast 0.5s infinite ease-in-out;
+    opacity: 0.8;
+}
+
+/* Final States */
+.d20Container.success .d20Svg {
+    animation: landSuccess 0.5s ease-out forwards;
+    stroke: var(--accent-primary);
+    filter: drop-shadow(0 0 10px var(--accent-glow));
+}
+
+.d20Container.success .d20Number {
+    fill: var(--accent-primary);
+}
+
+.d20Container.success .d20Outline {
+    fill: rgba(10, 10, 10, 0.8);
+}
+
+.d20Container.success .d20Glow {
+    opacity: 1;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.d20Container.error .d20Svg {
+    animation: landError 0.5s ease-out forwards;
+    stroke: #ff4444;
+    filter: drop-shadow(0 0 10px rgba(255, 68, 68, 0.5));
+}
+
+.d20Container.error .d20Number {
+    fill: #ff4444;
+}
+
+.d20Container.error .d20Outline {
+    fill: rgba(10, 10, 10, 0.8);
+}
+
+.d20Container.error .d20Glow {
+    opacity: 1;
+    background: radial-gradient(circle, rgba(255, 68, 68, 0.3) 0%, transparent 70%);
+    animation: pulseGlow 2s infinite ease-in-out;
+}
+
+/* Text & Progress */
+.textContainer {
+    text-align: center;
+    animation: slideUp 0.8s ease-out;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.title {
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: 2px;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    transition: color 0.3s ease;
+}
+
+.errorText {
+    color: #ff4444;
+    text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+}
+
+.progressBar {
+    width: 200px;
+    height: 2px;
+    background: var(--bg-surface);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progressFill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 50%;
+    background: var(--accent-primary);
+    box-shadow: 0 0 10px var(--accent-primary);
+    animation: progressMove 1.5s infinite ease-in-out;
+}
+
+/* Particles */
+.particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.particle {
+    position: absolute;
+    color: #ffffff;
+    opacity: 0;
+    animation: floatParticle 3s infinite ease-in-out;
+    transition: color 0.3s ease;
+}
+
+.d20Container.anticipate-success~.particles .particle,
+.d20Container.success~.particles .particle {
+    color: var(--accent-primary);
+}
+
+.d20Container.anticipate-error~.particles .particle,
+.d20Container.error~.particles .particle {
+    color: #ff4444;
+}
+
+.particle:nth-child(1) {
+    top: -20%;
+    left: -20%;
+    animation-delay: 0s;
+}
+
+.particle:nth-child(2) {
+    top: 20%;
+    right: -30%;
+    animation-delay: 0.5s;
+}
+
+.particle:nth-child(3) {
+    bottom: -20%;
+    left: 30%;
+    animation-delay: 1s;
+}
+
+.particle:nth-child(4) {
+    bottom: 40%;
+    right: 40%;
+    animation-delay: 1.5s;
+}
+
+.particle:nth-child(5) {
+    top: -40%;
+    right: 10%;
+    animation-delay: 2s;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes shake {
+    0% {
+        transform: translate(1px, 1px) rotate(0deg);
+    }
+
+    10% {
+        transform: translate(-1px, -2px) rotate(-1deg);
+    }
+
+    20% {
+        transform: translate(-3px, 0px) rotate(1deg);
+    }
+
+    30% {
+        transform: translate(3px, 2px) rotate(0deg);
+    }
+
+    40% {
+        transform: translate(1px, -1px) rotate(1deg);
+    }
+
+    50% {
+        transform: translate(-1px, 2px) rotate(-1deg);
+    }
+
+    60% {
+        transform: translate(-3px, 1px) rotate(0deg);
+    }
+
+    70% {
+        transform: translate(3px, 1px) rotate(-1deg);
+    }
+
+    80% {
+        transform: translate(-1px, -1px) rotate(1deg);
+    }
+
+    90% {
+        transform: translate(1px, 2px) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(1px, -2px) rotate(-1deg);
+    }
+}
+
+@keyframes landSuccess {
+    0% {
+        transform: scale(0.8);
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes landError {
+    0% {
+        transform: rotate(0deg) scale(1);
+    }
+
+    20% {
+        transform: rotate(-10deg);
+    }
+
+    40% {
+        transform: rotate(10deg);
+    }
+
+    60% {
+        transform: rotate(-10deg);
+    }
+
+    80% {
+        transform: rotate(10deg);
+    }
+
+    100% {
+        transform: rotate(0deg) scale(1);
+    }
+}
+
+@keyframes pulseGlow {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.8;
+    }
+}
+
+@keyframes pulseFast {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+
+    50% {
+        transform: scale(1.3);
+        opacity: 0.9;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes progressMove {
+    0% {
+        left: -50%;
+        width: 30%;
+    }
+
+    50% {
+        left: 20%;
+        width: 60%;
+    }
+
+    100% {
+        left: 100%;
+        width: 30%;
+    }
+}
+
+@keyframes floatParticle {
+    0% {
+        transform: translateY(0) scale(0);
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+
+    100% {
+        transform: translateY(-50px) scale(1);
+        opacity: 0;
+    }
+}
