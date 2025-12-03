@@ -664,49 +664,48 @@ async function renameChat(chatToken, newTitle) {
 
 /**
  * Importa um chat a partir de uma lista de mensagens.
- * @param {string} userId
- * @param {Array} messages
- * @param {string} apiKey
+ * @param {Array} messages - Lista de mensagens a serem importadas.
+ * @param {string} apiKey - Chave de API para o novo chat.
+ * @param {Function} onProgress - Callback para reportar progresso (current, total).
+ * @returns {Promise<string>} - Token do novo chat.
  */
-async function importChat(userId, messages, apiKey) {
+async function importChat(messages, apiKey, onProgress) {
+  const userId = "32272973-0b1d-40de-89d4-b3802845c17d"; // Hardcoded por enquanto
   console.log(`[Service] Importando chat para user: ${userId} com ${messages.length} mensagens.`);
 
-  // 1. Cria novo chat
+  // 1. Cria um novo chat
   const chatToken = await createChat(userId);
 
-  // 2. Atualiza API Key se fornecida
-  if (apiKey) {
-    await updateChatConfig(chatToken, { apiKey });
-  }
+  // 2. Atualiza a API Key do chat
+  await updateChatConfig(chatToken, { apiKey });
 
-  // 3. Insere mensagens no histórico
+  // 3. Processa as mensagens
+  let processedCount = 0;
+  const totalMessages = messages.length;
+
   for (const msg of messages) {
-    // Tenta processar anexos se existirem
-    let attachments = [];
-    if (msg.attachments) {
-      try {
-        attachments = typeof msg.attachments === 'string' ? JSON.parse(msg.attachments) : msg.attachments;
-      } catch (e) {
-        console.warn("[Service] Erro ao processar anexos na importação:", e);
-      }
+    // Mapeia os campos do JSON para o formato esperado
+    const text = msg.content || msg.text || "";
+    const role = msg.role === "model" ? "model" : "user";
+
+    // Adiciona a mensagem
+    await addMessage(chatToken, "historico", text, role, [], apiKey);
+
+    processedCount++;
+
+    // Reporta progresso se o callback existir
+    if (onProgress) {
+      onProgress(processedCount, totalMessages);
     }
 
-    // Adiciona mensagem (gera embedding se tiver API Key)
-    await addMessage(chatToken, "historico", msg.text, msg.role, attachments, apiKey);
-
-    // Pequeno delay para evitar Rate Limit do Gemini (429)
-    if (apiKey) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+    // Pequeno delay para evitar rate limit do Gemini na geração de embeddings
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
   return chatToken;
 }
 
 /**
- * Cria uma branch (bifurcação) de um chat existente a partir de uma mensagem específica.
- * @param {string} originalChatToken 
- * @param {string} targetMessageId 
  * @param {string} userId 
  */
 async function branchChat(originalChatToken, targetMessageId, userId) {

@@ -1,4 +1,3 @@
-// src/components/ChatList.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { MessageSquare, Trash2, Plus, Settings, ChevronLeft, ChevronRight, Edit2, Check, X, LogOut, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +21,8 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
   const [editingChatId, setEditingChatId] = useState(null);
   const [newTitle, setNewTitle] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const { addToast } = useToast();
   const { confirm } = useConfirmation();
   const navigate = useNavigate();
@@ -172,18 +173,69 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
   const handleConfirmImport = async (apiKey) => {
     setShowApiKeyModal(false);
     setLoading(true);
-    try {
-      const chatToken = await importChat(pendingImportMessages, apiKey);
-      addToast({ type: "success", message: "Campanha importada com sucesso!" });
+    setIsImporting(true);
+    setImportProgress({ current: 0, total: 0 });
 
-      await fetchChats();
-      onSelectChat(chatToken);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("http://localhost:3001/api/chat/import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ messages: pendingImportMessages, apiKey })
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha na importação");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let chatToken = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === "progress") {
+                setImportProgress({ current: data.current, total: data.total });
+              } else if (data.type === "complete") {
+                chatToken = data.chatToken;
+              } else if (data.type === "error") {
+                throw new Error(data.message);
+              }
+            } catch (e) {
+              console.warn("Erro ao parsear evento SSE:", e);
+            }
+          }
+        }
+      }
+
+      if (chatToken) {
+        addToast({ type: "success", message: "Campanha importada com sucesso!" });
+        await fetchChats();
+        onSelectChat(chatToken);
+      } else {
+        throw new Error("Token do chat não recebido.");
+      }
+
     } catch (error) {
       console.error("Erro ao importar:", error);
       addToast({ type: "error", message: "Erro ao importar chat." });
     } finally {
       setLoading(false);
       setPendingImportMessages([]);
+      setIsImporting(false);
+      setImportProgress({ current: 0, total: 0 });
     }
   };
 
@@ -334,6 +386,13 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
       )}
 
       {isLoggingOut && <CinematicLoading message="Saindo do Reino..." />}
+      {isImporting && (
+        <CinematicLoading
+          message="Importando Campanha..."
+          progress={importProgress.current}
+          total={importProgress.total}
+        />
+      )}
     </>
   );
 };

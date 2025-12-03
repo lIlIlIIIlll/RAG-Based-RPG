@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import styles from './CinematicLoading.module.css';
 import { Sparkles } from 'lucide-react';
 
-const CinematicLoading = ({ message = "Carregando...", status = 'loading', errorMessage = "" }) => {
+const CinematicLoading = ({ message = "Carregando...", status = 'loading', errorMessage = "", progress = 0, total = 0 }) => {
     const [displayMessage, setDisplayMessage] = useState(message);
     const [currentValue, setCurrentValue] = useState('?');
 
@@ -63,7 +63,20 @@ const CinematicLoading = ({ message = "Carregando...", status = 'loading', error
                     <h2 className={`${styles.title} ${status === 'error' ? styles.errorText : ''}`}>
                         {displayMessage}
                     </h2>
-                    {status === 'loading' && (
+
+                    {total > 0 && (
+                        <div className={styles.progressContainer}>
+                            <div className={styles.progressBar}>
+                                <div
+                                    className={styles.progressFill}
+                                    style={{ width: `${(progress / total) * 100}%`, animation: 'none' }}
+                                />
+                            </div>
+                            <span className={styles.progressText}>Turno {progress} de {total}</span>
+                        </div>
+                    )}
+
+                    {status === 'loading' && total === 0 && (
                         <div className={styles.progressBar}>
                             <div className={styles.progressFill} />
                         </div>
