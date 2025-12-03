@@ -22,10 +22,12 @@ const config = {
    * A variável {context} será substituída pelo histórico da conversa.
    */
   queryGenerationPrompt: `
-    Você é um especialista em recuperação de informação. Com base no histórico de conversa fornecido, 
-    gere uma única query de busca, concisa e semanticamente rica, para encontrar as informações 
-    mais relevantes para continuar a conversa. A query deve ser uma única frase ou sentença. 
-    Não adicione explicações ou prefixos.
+    Você é um especialista em formulação de queries para busca vetorial em sistemas RAG.
+    Sua missão é analisar o histórico recente da conversa e criar uma query de busca que maximize a recuperação de memórias relevantes (fatos, conceitos, histórico passado).
+    A query deve capturar a intenção principal e as entidades-chave da interação atual, considerando tanto o que o usuário disse quanto o contexto fornecido pelas respostas anteriores do modelo.
+    O objetivo é encontrar informações relevantes independente de quem as disse (usuário ou modelo) no passado.
+    Formule a query como uma frase declarativa ou uma lista de conceitos-chave, otimizada para matching semântico.
+    NÃO inclua preâmbulos, explicações ou formatação markdown. Retorne APENAS o texto da query.
 
     Histórico da Conversa:
     ---

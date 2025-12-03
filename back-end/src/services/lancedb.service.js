@@ -105,12 +105,12 @@ async function insertRecord(chatToken, collectionName, record) {
  * @param {number[]} queryVector
  * @returns {Promise<object[]>}
  */
-async function searchByVector(chatToken, collectionName, queryVector) {
+async function searchByVector(chatToken, collectionName, queryVector, limit = 10) {
   const db = await getDbConnection();
   const tableName = `${chatToken}-${collectionName}`;
   const table = await db.openTable(tableName);
 
-  const results = await table.search(queryVector).limit(10).toArray();
+  const results = await table.search(queryVector).limit(limit).toArray();
   console.log(
     `[LanceDB] Busca em ${tableName} retornou ${results.length} resultados.`
   );

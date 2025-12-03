@@ -197,7 +197,7 @@ async function searchMessages(chatToken, collectionName, queryText, limit = 5, a
   const queryVector = await geminiService.generateEmbedding(queryText, apiKey);
 
   // Usa o serviço do LanceDB para buscar
-  const results = await lanceDBService.searchByVector(chatToken, collectionName, queryVector);
+  const results = await lanceDBService.searchByVector(chatToken, collectionName, queryVector, limit);
   return results.slice(0, limit);
 }
 
@@ -252,37 +252,73 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   }
 
   // 5. Recupera Memória (RAG) usando a Query Gerada
-  // Busca em 'fatos' e 'conceitos' usando o vetor da query gerada
+  // Busca em TODAS as coleções, mistura, ordena por relevância e limita por palavras (15k)
   let contextText = "";
   let displayMemory = [];
   let uniqueResults = []; // Para uso nas tools
 
   if (searchQuery && searchQuery.trim().length > 0) {
     console.log(`[Service] Buscando memórias com query: "${searchQuery}"`);
-    const facts = await searchMessages(chatToken, "fatos", searchQuery, 3, apiKey);
-    const concepts = await searchMessages(chatToken, "conceitos", searchQuery, 3, apiKey);
 
-    // Combina e formata
-    const allMemories = [...facts, ...concepts];
+    let allMemories = [];
+    // Busca em todas as coleções configuradas
+    // Fallback para garantir que collectionNames exista
+    const collectionsToSearch = config.collectionNames || ["historico", "fatos", "conceitos"];
 
-    // Remove duplicatas baseadas no ID e filtra score baixo se necessário
+    for (const collectionName of collectionsToSearch) {
+      try {
+        // Busca um número maior de candidatos para filtrar depois (100 por tabela)
+        const results = await searchMessages(chatToken, collectionName, searchQuery, 100, apiKey);
+        // Adiciona a categoria ao objeto para referência futura
+        // results.forEach(r => r.category = collectionName);
+        // Adiciona a categoria ao objeto para referência futura
+        const resultsWithCategory = results.map(r => ({ ...r, category: collectionName }));
+        allMemories = allMemories.concat(resultsWithCategory);
+      } catch (err) {
+        console.warn(`[Service] Erro ao buscar em ${collectionName}:`, err);
+      }
+    }
+
+    // Ordena por similaridade (menor distância = mais similar)
+    allMemories.sort((a, b) => a._distance - b._distance);
+
+    // Conjunto de IDs já presentes no histórico recente para evitar duplicação
+    const recentHistoryIds = new Set(recentHistory.map(r => r.messageid));
     const seenIds = new Set();
-    uniqueResults = allMemories.filter(m => {
-      if (seenIds.has(m.messageid)) return false;
-      seenIds.add(m.messageid);
-      return true; // m.score < 1.5? (LanceDB score é distância, menor é melhor? Verificar métrica. Default L2. Menor = mais perto)
-    });
+
+    let currentWordCount = 0;
+    const WORD_LIMIT = 15000;
+
+    for (const memory of allMemories) {
+      // 1. Deduplicação de IDs (caso a mesma memória venha de múltiplas buscas - improvável mas seguro)
+      if (seenIds.has(memory.messageid)) continue;
+
+      // 2. Evita duplicar o que já está no histórico recente do chat
+      if (recentHistoryIds.has(memory.messageid)) continue;
+
+      // 3. Verifica limite de palavras
+      const wordCount = wordCounter(memory.text);
+      if (currentWordCount + wordCount > WORD_LIMIT) {
+        break; // Atingiu o limite
+      }
+
+      seenIds.add(memory.messageid);
+      uniqueResults.push(memory);
+      currentWordCount += wordCount;
+    }
 
     if (uniqueResults.length > 0) {
       contextText = "Memórias Relevantes recuperadas do banco de dados:\n" +
-        uniqueResults.map(m => `- [ID: ${m.messageid}] ${m.text}`).join("\n");
+        uniqueResults.map(m => `- [${m.role ? m.role.toUpperCase() : 'INFO'}] [ID: ${m.messageid}] ${m.text}`).join("\n");
 
       displayMemory = uniqueResults.map(m => ({
         messageid: m.messageid,
         text: m.text,
         score: m._distance, // LanceDB retorna _distance
-        category: facts.includes(m) ? "fatos" : "conceitos" // Simplificação
+        category: m.category
       }));
+
+      console.log(`[Service] Contexto RAG construído com ${uniqueResults.length} memórias (~${currentWordCount} palavras).`);
     }
   }
 

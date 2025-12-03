@@ -186,6 +186,7 @@ const ChatView = ({ chatToken }) => {
         return [...updatedPrev, ...uniqueNewMessages];
       });
 
+      console.log("[ChatView] Received newVectorMemory from API:", response.newVectorMemory);
       setVectorMemory(response.newVectorMemory || []);
 
       // Check for pending deletions

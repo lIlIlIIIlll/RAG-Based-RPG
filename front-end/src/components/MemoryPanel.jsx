@@ -31,6 +31,7 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
   const { confirm } = useConfirmation();
 
   useEffect(() => {
+    console.log("[MemoryPanel] vectorMemory updated:", vectorMemory);
     setLocalVectorMemory(vectorMemory || []);
   }, [vectorMemory]);
 
