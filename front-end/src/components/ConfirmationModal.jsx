@@ -13,17 +13,21 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
         }
     }, [pendingDeletions]);
 
-    // Fecha ao pressionar ESC
+    // Fecha ao pressionar ESC ou ENTER
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === "Escape") {
                 if (onCancel) onCancel();
                 else if (onClose) onClose();
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+                handleConfirm();
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onClose, onCancel]);
+    }, [onClose, onCancel, pendingDeletions, selectedIds, onConfirm]); // Adicionado dependências para garantir estado atualizado
 
     const handleBackdropClick = (e) => {
         if (e.target === e.currentTarget) {
@@ -41,6 +45,9 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
     };
 
     const handleConfirm = () => {
+        // Validação de segurança: se houver deleções pendentes, deve haver seleção
+        if (pendingDeletions && selectedIds.length === 0) return;
+
         // Se temos pendingDeletions, passamos os IDs selecionados.
         // Se não, é uma confirmação genérica, apenas chamamos onConfirm (que pode não esperar args ou esperar true).
         if (pendingDeletions) {

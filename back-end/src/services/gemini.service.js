@@ -27,7 +27,7 @@ const withTimeout = (promise, ms) => {
  * @param {number} maxRetries - Número máximo de tentativas.
  * @returns {Promise<any>} O resultado da operação.
  */
-async function retryOperation(operation, operationName, maxRetries = 3) {
+async function retryOperation(operation, operationName, maxRetries = 5) {
   let attempt = 0;
   while (attempt < maxRetries) {
     try {
@@ -39,7 +39,7 @@ async function retryOperation(operation, operationName, maxRetries = 3) {
       }
 
       const isRateLimit = error.message.includes("429") || error.message.includes("Too Many Requests");
-      const delay = isRateLimit ? Math.pow(2, attempt) * 1000 : 1000; // Backoff exponencial para rate limit
+      const delay = isRateLimit ? Math.pow(2, attempt) * 2000 : 1000; // Backoff exponencial agressivo para rate limit (base 2s)
 
       console.warn(`[Gemini] Erro em ${operationName} (Tentativa ${attempt}/${maxRetries}): ${error.message}. Retentando em ${delay}ms...`);
       await sleep(delay);
@@ -69,14 +69,17 @@ async function generateEmbedding(text, apiKey) {
     try {
       const genAI = getClient(apiKey);
       const embeddingModel = genAI.getGenerativeModel({
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
       });
 
       // Limita log para não poluir
       const snippet = text ? text.substring(0, 50) : "";
       // console.log(`[Gemini] Gerando embedding para: "${snippet}..."`); // Comentado para reduzir ruído em retries
 
-      const result = await withTimeout(embeddingModel.embedContent(text), 30000); // 30s timeout
+      const result = await withTimeout(embeddingModel.embedContent({
+        content: { parts: [{ text }] },
+        outputDimensionality: config.embeddingDimension,
+      }), 30000); // 30s timeout
       return result.embedding.values;
     } catch (error) {
       console.error("[Gemini] Erro ao gerar embedding:", error.message);

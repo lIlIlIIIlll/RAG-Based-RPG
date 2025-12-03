@@ -114,7 +114,8 @@ async function updateChatConfig(chatToken, newConfig) {
  */
 async function addMessage(chatToken, collectionName, text, role, attachments = [], apiKey) {
   // Gera embedding apenas se tiver API Key
-  let vector = null;
+  // Inicializa com vetor zerado para garantir que não seja null (LanceDB exige non-nullable)
+  let vector = new Array(config.embeddingDimension).fill(0);
   if (apiKey) {
     try {
       // Se houver anexos, o embedding deve considerar o texto + contexto dos anexos?
@@ -125,7 +126,7 @@ async function addMessage(chatToken, collectionName, text, role, attachments = [
       }
     } catch (error) {
       console.error("[Service] Falha ao gerar embedding para mensagem:", error);
-      // Prossegue sem vetor
+      // Mantém o vetor zerado em caso de erro
     }
   }
 
@@ -692,6 +693,11 @@ async function importChat(userId, messages, apiKey) {
 
     // Adiciona mensagem (gera embedding se tiver API Key)
     await addMessage(chatToken, "historico", msg.text, msg.role, attachments, apiKey);
+
+    // Pequeno delay para evitar Rate Limit do Gemini (429)
+    if (apiKey) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
 
   return chatToken;

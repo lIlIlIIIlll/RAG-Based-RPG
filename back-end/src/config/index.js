@@ -5,7 +5,7 @@ const config = {
   port: process.env.PORT || 3001,
   geminiApiKey: process.env.GEMINI_API_KEY,
   dbPath: "data/sample-lancedb",
-  embeddingDimension: 768,
+  embeddingDimension: 3072,
 
   // Coleções usadas no LanceDB
   collectionNames: ["fatos", "historico", "conceitos"],
