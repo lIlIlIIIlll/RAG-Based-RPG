@@ -222,15 +222,39 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
 
   await addMessage(chatToken, "historico", userMessage, "user", attachments, apiKey);
 
-  // 3. Recupera Memória (RAG)
-  // Busca em 'fatos' e 'conceitos' usando o vetor da mensagem do usuário (se tiver texto)
+  // 3. Recupera Histórico Recente (Necessário para gerar a query de busca e para o contexto do chat)
+  const historyRecords = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
+  // Ordena por data
+  historyRecords.sort((a, b) => a.createdAt - b.createdAt);
+
+  // Pega últimas N mensagens para não estourar contexto (simplificado)
+  const recentHistory = historyRecords.slice(-20);
+
+  // 4. Gera Query de Busca Otimizada (RAG)
+  // Usa o histórico recente para entender o que o usuário quer dizer
+  let searchQuery = userMessage; // Default: usa a mensagem do usuário
+
+  // Constrói contexto de texto para a IA gerar a query
+  const historyContextText = recentHistory.map(r => `${r.role}: ${r.text}`).join("\n");
+
+  if (apiKey) {
+    try {
+      searchQuery = await geminiService.generateSearchQuery(historyContextText, apiKey);
+    } catch (e) {
+      console.warn("[Service] Falha ao gerar query de busca, usando mensagem original:", e);
+    }
+  }
+
+  // 5. Recupera Memória (RAG) usando a Query Gerada
+  // Busca em 'fatos' e 'conceitos' usando o vetor da query gerada
   let contextText = "";
   let displayMemory = [];
   let uniqueResults = []; // Para uso nas tools
 
-  if (userMessage && userMessage.trim().length > 0) {
-    const facts = await searchMessages(chatToken, "fatos", userMessage, 3, apiKey);
-    const concepts = await searchMessages(chatToken, "conceitos", userMessage, 3, apiKey);
+  if (searchQuery && searchQuery.trim().length > 0) {
+    console.log(`[Service] Buscando memórias com query: "${searchQuery}"`);
+    const facts = await searchMessages(chatToken, "fatos", searchQuery, 3, apiKey);
+    const concepts = await searchMessages(chatToken, "conceitos", searchQuery, 3, apiKey);
 
     // Combina e formata
     const allMemories = [...facts, ...concepts];
@@ -256,16 +280,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     }
   }
 
-  // 4. Monta Prompt com Histórico Recente
-  // Carrega histórico recente para contexto conversacional
-  const historyRecords = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
-  // Ordena por data
-  historyRecords.sort((a, b) => a.createdAt - b.createdAt);
-
-  // Pega últimas N mensagens para não estourar contexto (simplificado)
-  const recentHistory = historyRecords.slice(-20);
-
-  // Converte para formato do Gemini
+  // 6. Monta Histórico para o Gemini
   const conversationHistory = recentHistory.map(r => {
     const parts = [{ text: r.text }];
     // Se tiver anexos (imagens), adiciona
@@ -290,18 +305,13 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     };
   });
 
-  // Insere contexto RAG no início ou como mensagem de sistema adicional?
-  // Vamos inserir como uma mensagem de sistema "injetada" ou user message oculta.
-  // Melhor: Adicionar ao systemInstruction ou como primeira mensagem user.
-  // Aqui, vamos anexar à última mensagem do usuário ou criar uma mensagem de contexto.
-  // Estratégia: System Instruction Dinâmico.
-
+  // 7. System Instruction Dinâmico
   let finalSystemInstruction = systemInstruction;
   if (contextText) {
     finalSystemInstruction += "\n\n" + contextText;
   }
 
-  // 5. Chama Gemini com Tools
+  // 8. Chama Gemini com Tools
   const tools = [
     {
       function_declarations: [
