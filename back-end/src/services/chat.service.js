@@ -228,7 +228,13 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   historyRecords.sort((a, b) => a.createdAt - b.createdAt);
 
   // Pega últimas N mensagens para não estourar contexto (simplificado)
-  const recentHistory = historyRecords.slice(-20);
+  // Pega últimas N mensagens para não estourar contexto (simplificado)
+  let startIndex = Math.max(0, historyRecords.length - 20);
+  // Tenta garantir que começa com mensagem do usuário voltando um índice se necessário
+  if (startIndex > 0 && historyRecords[startIndex].role === 'model') {
+    startIndex = Math.max(0, startIndex - 1);
+  }
+  const recentHistory = historyRecords.slice(startIndex);
 
   // 4. Gera Query de Busca Otimizada (RAG)
   // Usa o histórico recente para entender o que o usuário quer dizer
@@ -269,7 +275,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
 
     if (uniqueResults.length > 0) {
       contextText = "Memórias Relevantes recuperadas do banco de dados:\n" +
-        uniqueResults.map(m => `- ${m.text}`).join("\n");
+        uniqueResults.map(m => `- [ID: ${m.messageid}] ${m.text}`).join("\n");
 
       displayMemory = uniqueResults.map(m => ({
         messageid: m.messageid,
@@ -304,6 +310,15 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
       parts: parts
     };
   });
+
+  // Safety Check: Gemini exige que a primeira mensagem seja do usuário
+  if (conversationHistory.length > 0 && conversationHistory[0].role === 'model') {
+    console.warn("[Service] Histórico começa com 'model', inserindo placeholder 'user'.");
+    conversationHistory.unshift({
+      role: "user",
+      parts: [{ text: "..." }] // Placeholder neutro
+    });
+  }
 
   // 7. System Instruction Dinâmico
   let finalSystemInstruction = systemInstruction;
