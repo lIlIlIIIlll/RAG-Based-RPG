@@ -664,13 +664,13 @@ async function renameChat(chatToken, newTitle) {
 
 /**
  * Importa um chat a partir de uma lista de mensagens.
+ * @param {string} userId - ID do usuário dono do chat.
  * @param {Array} messages - Lista de mensagens a serem importadas.
  * @param {string} apiKey - Chave de API para o novo chat.
  * @param {Function} onProgress - Callback para reportar progresso (current, total).
  * @returns {Promise<string>} - Token do novo chat.
  */
-async function importChat(messages, apiKey, onProgress) {
-  const userId = "32272973-0b1d-40de-89d4-b3802845c17d"; // Hardcoded por enquanto
+async function importChat(userId, messages, apiKey, onProgress) {
   console.log(`[Service] Importando chat para user: ${userId} com ${messages.length} mensagens.`);
 
   // 1. Cria um novo chat

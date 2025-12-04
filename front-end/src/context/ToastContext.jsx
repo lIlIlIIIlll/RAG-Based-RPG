@@ -48,9 +48,9 @@ export const ToastProvider = ({ children }) => {
   }, []);
 
   const addToast = useCallback(
-    ({ title, message, type = "info", duration = 4000 }) => {
+    ({ title, message, type = "info", duration = 4000, onClick }) => {
       const id = Date.now().toString();
-      const newToast = { id, title, message, type, duration };
+      const newToast = { id, title, message, type, duration, onClick };
 
       setToasts((prev) => [...prev, newToast]);
 
@@ -66,19 +66,26 @@ export const ToastProvider = ({ children }) => {
   return (
     <ToastContext.Provider value={{ addToast, removeToast }}>
       {children}
-      
+
       {/* Renderização dos Toasts (Portal seria ideal, mas aqui direto no root funciona para MVP) */}
       <div className={styles.toastContainer}>
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`${styles.toast} ${styles[toast.type]}`}
+            className={`${styles.toast} ${styles[toast.type]} ${toast.onClick ? styles.clickable : ''}`}
             role="alert"
+            onClick={() => {
+              if (toast.onClick) {
+                toast.onClick();
+                removeToast(toast.id);
+              }
+            }}
+            style={toast.onClick ? { cursor: 'pointer' } : {}}
           >
             <div className={styles.icon}>
               {Icons[toast.type] || Icons.info}
             </div>
-            
+
             <div className={styles.content}>
               {toast.title && <span className={styles.title}>{toast.title}</span>}
               <span className={styles.message}>{toast.message}</span>
@@ -86,15 +93,18 @@ export const ToastProvider = ({ children }) => {
 
             <button
               className={styles.closeButton}
-              onClick={() => removeToast(toast.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeToast(toast.id);
+              }}
               aria-label="Fechar notificação"
             >
               ✕
             </button>
 
             {toast.duration > 0 && (
-              <div 
-                className={styles.progressBar} 
+              <div
+                className={styles.progressBar}
                 style={{ animationDuration: `${toast.duration}ms` }}
               />
             )}

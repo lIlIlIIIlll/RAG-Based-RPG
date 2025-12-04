@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import styles from './CinematicLoading.module.css';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Minimize2 } from 'lucide-react';
 
-const CinematicLoading = ({ message = "Carregando...", status = 'loading', errorMessage = "", progress = 0, total = 0 }) => {
+const CinematicLoading = ({ message = "Carregando...", status = 'loading', errorMessage = "", progress = 0, total = 0, onMinimize, isMinimizing, isMinimized, onMaximize }) => {
     const [displayMessage, setDisplayMessage] = useState(message);
     const [currentValue, setCurrentValue] = useState('?');
 
@@ -30,8 +30,49 @@ const CinematicLoading = ({ message = "Carregando...", status = 'loading', error
         return () => clearInterval(interval);
     }, [status]);
 
+    if (isMinimized) {
+        return (
+            <div className={styles.notification} onClick={onMaximize} title="Clique para expandir">
+                <div className={styles.notificationD20}>
+                    <svg viewBox="0 0 100 100" className={styles.d20Svg}>
+                        <path d="M 50 5 L 89 27.5 L 89 72.5 L 50 95 L 11 72.5 L 11 27.5 Z" className={styles.d20Outline} />
+                        <path d="M 28 38 L 72 38 L 50 75 Z" className={styles.d20Inner} />
+                        <path d="M 50 5 L 28 38" className={styles.d20Inner} />
+                        <path d="M 50 5 L 72 38" className={styles.d20Inner} />
+                        <path d="M 89 27.5 L 72 38" className={styles.d20Inner} />
+                        <path d="M 89 72.5 L 50 75" className={styles.d20Inner} />
+                        <path d="M 50 95 L 50 75" className={styles.d20Inner} />
+                        <path d="M 11 72.5 L 50 75" className={styles.d20Inner} />
+                        <path d="M 11 72.5 L 28 38" className={styles.d20Inner} />
+                        <path d="M 11 27.5 L 28 38" className={styles.d20Inner} />
+                        <text x="50" y="57" className={styles.d20Number}>{currentValue}</text>
+                    </svg>
+                </div>
+                <div className={styles.notificationContent}>
+                    <h4 className={styles.notificationTitle}>{displayMessage}</h4>
+                    {total > 0 && (
+                        <div className={styles.notificationProgress}>
+                            <div
+                                className={styles.notificationProgressFill}
+                                style={{ width: `${(progress / total) * 100}%` }}
+                            />
+                        </div>
+                    )}
+                </div>
+                <div className={styles.maximizeHint}>
+                    <Minimize2 size={12} style={{ transform: 'rotate(180deg)' }} />
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className={styles.overlay}>
+        <div className={`${styles.overlay} ${isMinimizing ? styles.minimizing : ''}`}>
+            {onMinimize && (
+                <button className={styles.minimizeBtn} onClick={onMinimize} title="Minimizar">
+                    <Minimize2 size={24} />
+                </button>
+            )}
             <div className={styles.content}>
                 <div className={`${styles.d20Container} ${styles[status]}`}>
                     <svg viewBox="0 0 100 100" className={styles.d20Svg}>
@@ -72,7 +113,6 @@ const CinematicLoading = ({ message = "Carregando...", status = 'loading', error
                                     style={{ width: `${(progress / total) * 100}%`, animation: 'none' }}
                                 />
                             </div>
-                            <span className={styles.progressText}>Turno {progress} de {total}</span>
                         </div>
                     )}
 
@@ -85,7 +125,7 @@ const CinematicLoading = ({ message = "Carregando...", status = 'loading', error
 
                 <div className={styles.particles}>
                     {[...Array(5)].map((_, i) => (
-                        <Sparkles key={i} className={styles.particle} size={16} />
+                        <Sparkles key={i} className={styles.particle} size={26} />
                     ))}
                 </div>
             </div>

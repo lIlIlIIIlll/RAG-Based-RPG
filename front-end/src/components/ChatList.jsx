@@ -22,7 +22,11 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
   const [newTitle, setNewTitle] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showImportLoading, setShowImportLoading] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [isMinimizing, setIsMinimizing] = useState(false);
+  const [isImportMinimized, setIsImportMinimized] = useState(false);
+  const minimizedRef = useRef(false);
   const { addToast } = useToast();
   const { confirm } = useConfirmation();
   const navigate = useNavigate();
@@ -172,8 +176,10 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
 
   const handleConfirmImport = async (apiKey) => {
     setShowApiKeyModal(false);
-    setLoading(true);
+    // setLoading(true); // Removido para permitir interação se minimizado
     setIsImporting(true);
+    setShowImportLoading(true);
+    minimizedRef.current = false;
     setImportProgress({ current: 0, total: 0 });
 
     try {
@@ -221,9 +227,18 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
       }
 
       if (chatToken) {
-        addToast({ type: "success", message: "Campanha importada com sucesso!" });
-        await fetchChats();
-        onSelectChat(chatToken);
+        if (minimizedRef.current) {
+          addToast({
+            type: "success",
+            message: "Campanha importada! Clique para abrir.",
+            onClick: () => onSelectChat(chatToken)
+          });
+          await fetchChats();
+        } else {
+          addToast({ type: "success", message: "Campanha importada com sucesso!" });
+          await fetchChats();
+          onSelectChat(chatToken);
+        }
       } else {
         throw new Error("Token do chat não recebido.");
       }
@@ -235,8 +250,19 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
       setLoading(false);
       setPendingImportMessages([]);
       setIsImporting(false);
+      setShowImportLoading(false);
+      setIsImportMinimized(false);
       setImportProgress({ current: 0, total: 0 });
     }
+  };
+
+  const handleMinimizeImport = () => {
+    setIsMinimizing(true);
+    setTimeout(() => {
+      setIsImportMinimized(true);
+      setIsMinimizing(false);
+      minimizedRef.current = true;
+    }, 500); // Wait for animation
   };
 
   return (
@@ -386,11 +412,15 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
       )}
 
       {isLoggingOut && <CinematicLoading message="Saindo do Reino..." />}
-      {isImporting && (
+      {showImportLoading && (
         <CinematicLoading
           message="Importando Campanha..."
           progress={importProgress.current}
           total={importProgress.total}
+          onMinimize={handleMinimizeImport}
+          isMinimized={isImportMinimized}
+          onMaximize={() => setIsImportMinimized(false)}
+          isMinimizing={isMinimizing}
         />
       )}
     </>
