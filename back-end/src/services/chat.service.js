@@ -87,23 +87,6 @@ async function deleteChat(chatToken, userId) {
 }
 
 /**
- * Atualiza configurações do chat.
- * @param {string} chatToken
- * @param {Object} newConfig
- */
-async function updateChatConfig(chatToken, newConfig) {
-  console.log(`[Service] Atualizando config do chat: ${chatToken}`, newConfig);
-  const metadata = await chatStorage.getChatMetadata(chatToken);
-  if (!metadata) throw new Error("Chat não encontrado");
-
-  metadata.config = { ...metadata.config, ...newConfig };
-  metadata.updatedAt = new Date().toISOString();
-
-  await chatStorage.saveChatMetadata(chatToken, metadata, metadata.userId);
-  return metadata;
-}
-
-/**
  * Adiciona uma mensagem ao histórico (ou outra coleção).
  * @param {string} chatToken
  * @param {string} collectionName
@@ -650,6 +633,23 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     newVectorMemory: displayMemory,
     pendingDeletions: pendingDeletionsForResponse
   };
+}
+
+/**
+ * Atualiza as configurações de um chat.
+ * @param {string} chatToken 
+ * @param {Object} config 
+ */
+async function updateChatConfig(chatToken, config) {
+  const metadata = await chatStorage.getChatMetadata(chatToken);
+  if (!metadata) throw new Error("Chat não encontrado.");
+
+  // Atualiza apenas os campos permitidos ou faz merge
+  metadata.config = { ...metadata.config, ...config };
+  metadata.updatedAt = new Date().toISOString();
+
+  await chatStorage.saveChatMetadata(chatToken, metadata, metadata.userId);
+  return metadata;
 }
 
 /**

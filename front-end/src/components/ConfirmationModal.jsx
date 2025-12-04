@@ -13,6 +13,19 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
         }
     }, [pendingDeletions]);
 
+    const handleConfirm = () => {
+        // Validação de segurança: se houver deleções pendentes, deve haver seleção
+        if (pendingDeletions && selectedIds.length === 0) return;
+
+        // Se temos pendingDeletions, passamos os IDs selecionados.
+        // Se não, é uma confirmação genérica, apenas chamamos onConfirm (que pode não esperar args ou esperar true).
+        if (pendingDeletions) {
+            onConfirm(selectedIds);
+        } else {
+            onConfirm();
+        }
+    };
+
     // Fecha ao pressionar ESC ou ENTER
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -44,18 +57,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
         );
     };
 
-    const handleConfirm = () => {
-        // Validação de segurança: se houver deleções pendentes, deve haver seleção
-        if (pendingDeletions && selectedIds.length === 0) return;
 
-        // Se temos pendingDeletions, passamos os IDs selecionados.
-        // Se não, é uma confirmação genérica, apenas chamamos onConfirm (que pode não esperar args ou esperar true).
-        if (pendingDeletions) {
-            onConfirm(selectedIds);
-        } else {
-            onConfirm();
-        }
-    };
 
     const handleClose = () => {
         if (onCancel) onCancel();

@@ -24,18 +24,6 @@ router.post("/import", chatController.importChat);
 // GET /api/chat/:chatToken/history
 router.get("/:chatToken/history", chatController.getChatHistory);
 
-// Obter detalhes/metadados de um chat específico
-// GET /api/chat/:chatToken
-router.get("/:chatToken", chatController.getChatDetails);
-
-// Deletar chat
-// DELETE /api/chat/:chatToken
-router.delete("/:chatToken", chatController.deleteChat);
-
-// Inserir mensagem manual
-// POST /api/chat/insert/:chatToken/:collectionName
-router.post("/insert/:chatToken/:collectionName", chatController.addMessage);
-
 // Editar mensagem
 // PUT /api/chat/edit/:chatToken/:messageid
 router.put("/edit/:chatToken/:messageid", chatController.editMessage);
@@ -55,6 +43,13 @@ router.post(
   chatController.searchMessages
 );
 
+// Inserir mensagem/memória
+// POST /api/chat/insert/:chatToken/:collectionName
+router.post(
+  "/insert/:chatToken/:collectionName",
+  chatController.addMessage
+);
+
 // Branch Chat
 // POST /api/chat/:chatToken/message/:messageId/branch
 router.post("/:chatToken/message/:messageId/branch", chatController.branchChat);
@@ -66,5 +61,23 @@ router.post(
   upload.array("files"),
   chatController.generateChatResponse
 );
+
+// --- Rotas de Chat (Detalhes/Config/Histórico) ---
+
+// Obter detalhes do chat (config)
+// GET /api/chat/:chatToken
+router.get("/:chatToken", chatController.getChatDetails);
+
+// Atualizar configuração do chat
+// PUT /api/chat/:chatToken/config
+router.put("/:chatToken/config", chatController.updateChatConfig);
+
+// Renomear chat
+// PUT /api/chat/:chatToken/rename
+router.put("/:chatToken/rename", chatController.renameChat);
+
+// Deletar chat
+// DELETE /api/chat/:chatToken
+router.delete("/:chatToken", chatController.deleteChat);
 
 module.exports = router;
