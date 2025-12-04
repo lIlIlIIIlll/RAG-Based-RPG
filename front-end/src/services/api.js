@@ -20,6 +20,19 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Interceptor para lidar com erros de resposta (ex: 401 Unauthorized)
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      log("API:INTERCEPTOR", "Sessão expirada ou inválida (401). Redirecionando para login...", "warn");
+      localStorage.removeItem("token");
+      window.location.href = "/";
+    }
+    return Promise.reject(error);
+  }
+);
+
 // --- Autenticação ---
 
 export const login = async (email, password) => {

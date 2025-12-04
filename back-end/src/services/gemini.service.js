@@ -1,5 +1,5 @@
 // src/services/gemini.service.js
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 const config = require("../config");
 
 // --- Helper de Retry e Timeout ---
@@ -100,8 +100,19 @@ async function generateSearchQuery(contextText, apiKey) {
       console.log(`[Gemini] Gerando query de busca a partir do contexto...`);
 
       const genAI = getClient(apiKey);
+
+      const safetySettings = [
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+      ];
+
       // Usa um modelo leve para tarefas auxiliares
-      const auxModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const auxModel = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        safetySettings: safetySettings
+      });
 
       const prompt = config.queryGenerationPrompt.replace(
         "{context}",
@@ -119,7 +130,9 @@ async function generateSearchQuery(contextText, apiKey) {
   } catch (error) {
     console.error("[Gemini] Erro ao gerar query de busca após retries:", error.message);
     // Retorna o próprio contexto em caso de erro (fail-safe)
-    return contextText;
+    // Retorna a última mensagem do usuário como fallback (melhor que o contexto inteiro)
+    const lastUserMessage = contextText.split('\n').reverse().find(line => line.startsWith('user:'));
+    return lastUserMessage ? lastUserMessage.replace('user: ', '') : contextText.substring(0, 100);
   }
 }
 
@@ -128,7 +141,7 @@ async function generateSearchQuery(contextText, apiKey) {
  * 
  * @param {object[]} history - Histórico completo formatado pra API do Gemini.
  * @param {string} systemInstruction - Instrução de sistema.
- * @param {object} generationOptions - { modelName, temperature, tools, apiKey }
+ * @param {object} generationOptions - { modelName, temperature, tools, apiKey, thinkingConfig }
  * @returns {Promise<{text: string, functionCalls: object[]}>} Objeto com texto e chamadas de função.
  */
 async function generateChatResponse(history, systemInstruction, generationOptions = {}) {
@@ -139,6 +152,7 @@ async function generateChatResponse(history, systemInstruction, generationOption
       const temperature = generationOptions.temperature ?? 0.7;
       const tools = generationOptions.tools || [];
       const apiKey = generationOptions.apiKey;
+      const thinkingConfig = generationOptions.thinkingConfig;
 
       const genAI = getClient(apiKey);
 
@@ -147,13 +161,22 @@ async function generateChatResponse(history, systemInstruction, generationOption
       );
 
       // Instancia o modelo dinamicamente com as configurações deste chat
+      const generationConfig = {
+        temperature: temperature,
+      };
+
+      // Lógica para aplicar thinkingConfig apenas se o modelo suportar
+      const isThinkingModel = modelName.includes("thinking");
+
+      if (thinkingConfig && isThinkingModel) {
+        generationConfig.thinkingConfig = thinkingConfig;
+      }
+
       const dynamicModel = genAI.getGenerativeModel({
         model: modelName,
         systemInstruction,
         tools: tools,
-        generationConfig: {
-          temperature: temperature,
-        }
+        generationConfig: generationConfig
       });
 
       if (!history || history.length === 0) {
@@ -247,7 +270,7 @@ async function generateImage(prompt, apiKey) {
     try {
       console.log(`[Gemini] Gerando imagem para: "${prompt}"`);
       const genAI = getClient(apiKey);
-      const imageModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+      const imageModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const result = await withTimeout(imageModel.generateContent(prompt), 60000); // 60s timeout
       const response = result.response;
@@ -276,4 +299,4 @@ module.exports = {
   generateSearchQuery,
   generateChatResponse,
   generateImage,
-};
+}; 

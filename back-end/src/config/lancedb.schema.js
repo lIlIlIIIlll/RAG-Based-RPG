@@ -29,6 +29,9 @@ const chatMessageSchema = new Schema([
 
   // Anexos (arquivos) serializados como JSON
   new Field("attachments", new Utf8(), true), // nullable
+
+  // Assinatura de pensamento do Gemini 3.0 (para manter contexto de reasoning)
+  new Field("thoughtSignature", new Utf8(), true), // nullable
 ]);
 
 module.exports = { chatMessageSchema };

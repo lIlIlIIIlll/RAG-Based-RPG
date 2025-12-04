@@ -30,10 +30,11 @@ async function createChat(userId) {
     updatedAt: new Date().toISOString(),
     userId: userId, // Salva o userId nos metadados
     config: {
-      modelName: "gemini-2.5-flash",
-      temperature: 0.7,
+      modelName: "gemini-2.5-pro",
+      temperature: 1.0,
       systemInstruction: config.systemInstructionTemplate,
       apiKey: "", // Inicializa vazio
+      thinkingLevel: "high", // Default para Gemini 3.0
     },
   };
 
@@ -94,8 +95,9 @@ async function deleteChat(chatToken, userId) {
  * @param {string} role
  * @param {Array} attachments
  * @param {string} apiKey
+ * @param {string} thoughtSignature
  */
-async function addMessage(chatToken, collectionName, text, role, attachments = [], apiKey) {
+async function addMessage(chatToken, collectionName, text, role, attachments = [], apiKey, thoughtSignature = null) {
   // Gera embedding apenas se tiver API Key
   // Inicializa com vetor zerado para garantir que não seja null (LanceDB exige non-nullable)
   let vector = new Array(config.embeddingDimension).fill(0);
@@ -119,7 +121,8 @@ async function addMessage(chatToken, collectionName, text, role, attachments = [
     messageid: uuidv4(),
     role,
     createdAt: Date.now(),
-    attachments: JSON.stringify(attachments) // Salva anexos como string JSON
+    attachments: JSON.stringify(attachments), // Salva anexos como string JSON
+    thoughtSignature: thoughtSignature
   };
 
   await lanceDBService.insertRecord(chatToken, collectionName, record);
@@ -193,7 +196,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   const chatMetadata = await chatStorage.getChatMetadata(chatToken);
   if (!chatMetadata) throw new Error("Chat não encontrado.");
 
-  const { apiKey, modelName, temperature, systemInstruction } = chatMetadata.config;
+  const { apiKey, modelName, temperature, systemInstruction, thinkingLevel } = chatMetadata.config;
   if (!apiKey) throw new Error("API Key não configurada neste chat.");
 
   // 2. Salva mensagem do usuário no histórico
@@ -212,8 +215,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   historyRecords.sort((a, b) => a.createdAt - b.createdAt);
 
   // Pega últimas N mensagens para não estourar contexto (simplificado)
-  // Pega últimas N mensagens para não estourar contexto (simplificado)
-  let startIndex = Math.max(0, historyRecords.length - 20);
+  let startIndex = Math.max(0, historyRecords.length - 25);
   // Tenta garantir que começa com mensagem do usuário voltando um índice se necessário
   if (startIndex > 0 && historyRecords[startIndex].role === 'model') {
     startIndex = Math.max(0, startIndex - 1);
@@ -254,8 +256,6 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
         // Busca um número maior de candidatos para filtrar depois (100 por tabela)
         const results = await searchMessages(chatToken, collectionName, searchQuery, 100, apiKey);
         // Adiciona a categoria ao objeto para referência futura
-        // results.forEach(r => r.category = collectionName);
-        // Adiciona a categoria ao objeto para referência futura
         const resultsWithCategory = results.map(r => ({ ...r, category: collectionName }));
         allMemories = allMemories.concat(resultsWithCategory);
       } catch (err) {
@@ -271,7 +271,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     const seenIds = new Set();
 
     let currentWordCount = 0;
-    const WORD_LIMIT = 15000;
+    const WORD_LIMIT = 7000;
 
     for (const memory of allMemories) {
       // 1. Deduplicação de IDs (caso a mesma memória venha de múltiplas buscas - improvável mas seguro)
@@ -309,6 +309,10 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   // 6. Monta Histórico para o Gemini
   const conversationHistory = recentHistory.map(r => {
     const parts = [{ text: r.text }];
+    // Se tiver thoughtSignature, adiciona
+    if (r.thoughtSignature) {
+      parts[0].thoughtSignature = r.thoughtSignature;
+    }
     // Se tiver anexos (imagens), adiciona
     if (r.attachments) {
       try {
@@ -432,7 +436,8 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     modelName,
     temperature,
     tools,
-    apiKey
+    apiKey,
+    thinkingConfig: thinkingLevel ? { thinkingLevel } : undefined
   };
 
   let loopCount = 0;
@@ -604,7 +609,18 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
 
   // Salva resposta final
   const modelResponse = finalModelResponseText || "Desculpe, não consegui processar sua solicitação.";
-  const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model", [], apiKey);
+
+  // Tenta extrair thoughtSignature da resposta final
+  let finalThoughtSignature = null;
+  if (currentResponse.parts && currentResponse.parts.length > 0) {
+    // Procura em qualquer parte, mas geralmente está na primeira ou associada ao texto
+    const partWithSig = currentResponse.parts.find(p => p.thoughtSignature);
+    if (partWithSig) {
+      finalThoughtSignature = partWithSig.thoughtSignature;
+    }
+  }
+
+  const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model", [], apiKey, finalThoughtSignature);
 
   generatedMessages.push({
     text: modelResponse,

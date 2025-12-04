@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Terminal, ArrowRight, User, Mail, Lock, Sparkles } from 'lucide-react';
 import * as api from '../services/api';
@@ -8,6 +8,7 @@ import CinematicLoading from './CinematicLoading';
 const AuthPage = () => {
     const [isLogin, setIsLogin] = useState(true);
     const navigate = useNavigate();
+    const submitButtonRef = useRef(null);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -75,6 +76,13 @@ const AuthPage = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitButtonRef.current.click();
+        }
+    };
+
     return (
         <div className={styles.container}>
             {isLoading && (
@@ -121,6 +129,7 @@ const AuthPage = () => {
                                             placeholder="Apelido"
                                             value={formData.name}
                                             onChange={handleChange}
+                                            onKeyDown={handleKeyDown}
                                             className={styles.input}
                                             required={!isLogin}
                                         />
@@ -136,6 +145,7 @@ const AuthPage = () => {
                                     placeholder="Endereço de E-mail"
                                     value={formData.email}
                                     onChange={handleChange}
+                                    onKeyDown={handleKeyDown}
                                     className={styles.input}
                                     required
                                 />
@@ -149,12 +159,13 @@ const AuthPage = () => {
                                     placeholder="Senha"
                                     value={formData.password}
                                     onChange={handleChange}
+                                    onKeyDown={handleKeyDown}
                                     className={styles.input}
                                     required
                                 />
                             </div>
 
-                            <button type="submit" className={styles.submitButton} disabled={isLoading}>
+                            <button ref={submitButtonRef} type="submit" className={styles.submitButton} disabled={isLoading}>
                                 <span>{isLogin ? 'Entrar' : 'Criar Conta'}</span>
                                 <ArrowRight size={20} />
                                 <div className={styles.buttonGlow} />
