@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, AlertTriangle, Trash2, Check, Database, Brain, History } from 'lucide-react';
 import styles from './ConfirmationModal.module.css';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeletions, title, message }) => {
     const [selectedIds, setSelectedIds] = useState([]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (pendingDeletions) {
             setSelectedIds(pendingDeletions.map(m => m.messageid));
         } else {
@@ -13,7 +13,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
         }
     }, [pendingDeletions]);
 
-    const handleConfirm = () => {
+    const handleConfirm = useCallback(() => {
         // Validação de segurança: se houver deleções pendentes, deve haver seleção
         if (pendingDeletions && selectedIds.length === 0) return;
 
@@ -24,7 +24,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
         } else {
             onConfirm();
         }
-    };
+    }, [pendingDeletions, selectedIds, onConfirm]);
 
     // Fecha ao pressionar ESC ou ENTER
     useEffect(() => {
@@ -40,7 +40,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [onClose, onCancel, pendingDeletions, selectedIds, onConfirm]); // Adicionado dependências para garantir estado atualizado
+    }, [onClose, onCancel, handleConfirm]);
 
     const handleBackdropClick = (e) => {
         if (e.target === e.currentTarget) {
