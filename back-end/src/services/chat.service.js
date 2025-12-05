@@ -215,7 +215,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   historyRecords.sort((a, b) => a.createdAt - b.createdAt);
 
   // Pega últimas N mensagens para não estourar contexto (simplificado)
-  let startIndex = Math.max(0, historyRecords.length - 25);
+  let startIndex = Math.max(0, historyRecords.length - 20);
   // Tenta garantir que começa com mensagem do usuário voltando um índice se necessário
   if (startIndex > 0 && historyRecords[startIndex].role === 'model') {
     startIndex = Math.max(0, startIndex - 1);
@@ -263,6 +263,14 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
       }
     }
 
+    // Aplica viés (bias) para Fatos e Conceitos
+    const BIAS_MULTIPLIER = 0.70; // 10% de desconto na distância
+    allMemories.forEach(memory => {
+      if (memory.category === 'fatos' || memory.category === 'conceitos') {
+        memory._distance = memory._distance * BIAS_MULTIPLIER;
+      }
+    });
+
     // Ordena por similaridade (menor distância = mais similar)
     allMemories.sort((a, b) => a._distance - b._distance);
 
@@ -271,7 +279,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     const seenIds = new Set();
 
     let currentWordCount = 0;
-    const WORD_LIMIT = 7000;
+    const WORD_LIMIT = 5000;
 
     for (const memory of allMemories) {
       // 1. Deduplicação de IDs (caso a mesma memória venha de múltiplas buscas - improvável mas seguro)
@@ -309,6 +317,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   // 6. Monta Histórico para o Gemini
   const conversationHistory = recentHistory.map(r => {
     const parts = [{ text: r.text }];
+
     // Se tiver thoughtSignature, adiciona
     if (r.thoughtSignature) {
       parts[0].thoughtSignature = r.thoughtSignature;
@@ -346,8 +355,18 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
 
   // 7. System Instruction Dinâmico
   let finalSystemInstruction = systemInstruction;
+
+  // Verifica se o template tem o placeholder. Se não tiver, faz append como fallback.
   if (contextText) {
-    finalSystemInstruction += "\n\n" + contextText;
+    if (finalSystemInstruction.includes("{vector_memory}")) {
+      finalSystemInstruction = finalSystemInstruction.replace("{vector_memory}", contextText);
+    } else {
+      // Fallback para templates antigos que não tenham a tag
+      finalSystemInstruction += "\n\n<retrieved_context>\n" + contextText + "\n</retrieved_context>";
+    }
+  } else {
+    // Limpa o placeholder se não houver memória
+    finalSystemInstruction = finalSystemInstruction.replace("{vector_memory}", "Nenhuma memória relevante encontrada.");
   }
 
   // 8. Chama Gemini com Tools
@@ -775,7 +794,8 @@ async function branchChat(originalChatToken, targetMessageId, userId) {
         createdAt: record.createdAt,
         // Garante que o vetor seja um array simples de números, se existir
         vector: record.vector ? Array.from(record.vector) : null,
-        attachments: record.attachments // Mantém anexos
+        attachments: record.attachments, // Mantém anexos
+        thoughtSignature: record.thoughtSignature
       };
 
       await lanceDBService.insertRecord(newChatToken, collectionName, cleanRecord);

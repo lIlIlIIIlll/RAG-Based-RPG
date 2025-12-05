@@ -4,7 +4,7 @@ import {
   Search, Plus, Edit2, Save, X, Trash2,
   Database, Brain, History, ChevronRight, ChevronLeft
 } from "lucide-react";
-import { addMemory, editMemory, searchMemory, deleteMessage } from "../services/api";
+import { addMemory, editMemory, deleteMessage } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import { useConfirmation } from "../context/ConfirmationContext";
 import styles from "./MemoryPanel.module.css";
@@ -15,8 +15,6 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
   const [localVectorMemory, setLocalVectorMemory] = useState(vectorMemory || []);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
 
   // Estado do Modal de Adição
   const [showAddModal, setShowAddModal] = useState(false);
@@ -43,24 +41,9 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
 
   // --- Ações ---
 
-  const handleSearch = async (e) => {
+  const handleSearch = (e) => {
     const query = e ? e.target.value : searchQuery;
     setSearchQuery(query);
-
-    if (!query.trim() || !chatToken) {
-      setSearchResults([]);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const results = await searchMemory(chatToken, activeTab, query);
-      setSearchResults(results || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSearching(false);
-    }
   };
 
   const handleAddMemory = async () => {
@@ -88,7 +71,6 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
 
       const filter = (list) => list.filter(m => m.messageid !== id);
       setLocalVectorMemory(prev => filter(prev));
-      setSearchResults(prev => filter(prev));
 
       addToast({ type: "success", message: "Memória removida." });
     } catch (err) {
@@ -109,7 +91,6 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
 
       const update = (list) => list.map(m => m.messageid === editingId ? { ...m, text: editingText } : m);
       setLocalVectorMemory(prev => update(prev));
-      setSearchResults(prev => update(prev));
 
       addToast({ type: "success", message: "Memória atualizada." });
       setEditingId(null);
@@ -120,9 +101,11 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
     }
   };
 
-  const listToRender = searchQuery.trim().length > 0
-    ? searchResults
-    : localVectorMemory.filter(item => item.category === activeTab);
+  const listToRender = localVectorMemory.filter(item => {
+    const matchesTab = item.category === activeTab;
+    const matchesSearch = searchQuery.trim() === "" || item.text.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
 
   return (
     <div className={`${styles.memoryPanelContainer} ${collapsed ? styles.collapsed : ""}`}>
@@ -164,7 +147,6 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                 onClick={() => {
                   setActiveTab(c.id);
                   setSearchQuery("");
-                  setSearchResults([]);
                 }}
               >
                 {c.icon}

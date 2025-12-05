@@ -13,13 +13,14 @@ export const ConfirmationProvider = ({ children }) => {
         resolve: null,
     });
 
-    const confirm = useCallback((message, title = "Confirmação") => {
+    const confirm = useCallback((message, title = "Confirmação", options = {}) => {
         return new Promise((resolve) => {
             setModalState({
                 isOpen: true,
                 title,
                 message,
                 resolve,
+                ...options
             });
         });
     }, []);
@@ -47,6 +48,9 @@ export const ConfirmationProvider = ({ children }) => {
                 message={modalState.message}
                 onConfirm={handleConfirm}
                 onCancel={handleCancel}
+                variant={modalState.variant}
+                confirmIcon={modalState.confirmIcon}
+                confirmLabel={modalState.confirmLabel}
             />
         </ConfirmationContext.Provider>
     );

@@ -290,7 +290,7 @@ const ChatView = ({ chatToken }) => {
   };
 
   const handleBranch = async (messageId) => {
-    if (!(await confirm("Criar um novo chat a partir desta mensagem?", "Confirmar Branch"))) return;
+    if (!(await confirm("Criar um novo chat a partir desta mensagem?", "Confirmar Branch", { variant: 'branch' }))) return;
 
     try {
       setIsLoading(true);

@@ -91,9 +91,29 @@ const ChatWindow = ({
     };
 
     const handleKeyDown = (event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            handleFormSubmit(event);
+        if (event.key === "Enter") {
+            if (event.shiftKey) {
+                event.preventDefault();
+                const start = event.target.selectionStart;
+                const end = event.target.selectionEnd;
+                const value = inputText;
+                const newValue = value.substring(0, start) + "\n" + value.substring(end);
+
+                setInputText(newValue);
+
+                // Ajusta cursor e altura após renderização
+                setTimeout(() => {
+                    const target = textareaRef.current;
+                    if (target) {
+                        target.selectionStart = target.selectionEnd = start + 1;
+                        target.style.height = "auto";
+                        target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
+                    }
+                }, 0);
+            } else {
+                event.preventDefault();
+                handleFormSubmit(event);
+            }
         }
     };
 
@@ -238,7 +258,7 @@ const ChatWindow = ({
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
                         className={styles.textInput}
-                        placeholder="Envie uma mensagem..."
+                        placeholder="Envie uma mensagem... (Shift+Enter para pular linha)"
                         rows={1}
                         disabled={isLoading}
                     />
@@ -251,7 +271,7 @@ const ChatWindow = ({
                     </button>
                 </form>
                 <div className={styles.footerNote}>
-                    IA pode cometer erros. Verifique informações importantes.
+                    Enter para enviar / Shift+Enter para quebrar linha
                 </div>
             </div>
         </div>

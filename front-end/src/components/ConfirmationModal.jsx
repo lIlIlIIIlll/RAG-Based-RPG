@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, AlertTriangle, Trash2, Check, Database, Brain, History } from 'lucide-react';
+import { X, AlertTriangle, Trash2, Check, Database, Brain, History, GitBranch } from 'lucide-react';
 import styles from './ConfirmationModal.module.css';
 
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeletions, title, message }) => {
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeletions, title, message, confirmIcon, confirmLabel, variant = 'danger' }) => {
     const [selectedIds, setSelectedIds] = useState([]);
 
     useEffect(() => {
@@ -132,11 +132,11 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, onCancel, pendingDeleti
                         </button>
                         <button
                             onClick={handleConfirm}
-                            className={styles.confirmBtn}
+                            className={variant === 'branch' || variant === 'primary' ? styles.primaryBtn : styles.confirmBtn}
                             disabled={pendingDeletions && selectedIds.length === 0}
                         >
-                            <Trash2 size={16} />
-                            Confirmar
+                            {confirmIcon ? confirmIcon : (variant === 'branch' ? <GitBranch size={16} /> : <Trash2 size={16} />)}
+                            {confirmLabel || "Confirmar"}
                         </button>
                     </div>
                 </div>
