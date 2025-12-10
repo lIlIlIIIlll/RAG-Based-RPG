@@ -206,6 +206,7 @@ const ChatView = ({ chatToken }) => {
   };
 
   const handleEditMessage = async (messageid, newText) => {
+    const originalMessages = [...messages]; // Cópia para rollback
     try {
       // UI Otimista
       setMessages(prev => prev.map(msg =>
@@ -215,6 +216,7 @@ const ChatView = ({ chatToken }) => {
       await editMemory(chatToken, messageid, newText);
       addToast({ type: "success", message: "Mensagem atualizada." });
     } catch (error) {
+      setMessages(originalMessages); // Rollback
       addToast({ type: "error", message: "Erro ao editar mensagem." });
     }
   };
