@@ -1,10 +1,11 @@
 // src/components/MemoryPanel.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search, Plus, Edit2, Save, X, Trash2,
-  Database, Brain, History, ChevronRight, ChevronLeft
+  Database, Brain, History, ChevronRight, ChevronLeft,
+  Download, Upload, FileJson, CheckCircle, AlertCircle
 } from "lucide-react";
-import { addMemory, editMemory, deleteMessage } from "../services/api";
+import { addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import { useConfirmation } from "../context/ConfirmationContext";
 import styles from "./MemoryPanel.module.css";
@@ -24,6 +25,23 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Estados para Export
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportCollections, setExportCollections] = useState({ fatos: true, conceitos: true, historico: false });
+  const [memoryStats, setMemoryStats] = useState({});
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Estados para Import
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importData, setImportData] = useState(null);
+  const [importCollections, setImportCollections] = useState({});
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+
+  const fileInputRef = useRef(null);
 
   const { addToast } = useToast();
   const { confirm } = useConfirmation();
@@ -101,6 +119,124 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
     }
   };
 
+  // --- Export Handlers ---
+  const handleOpenExport = async () => {
+    setShowExportModal(true);
+    setIsLoadingStats(true);
+    try {
+      const stats = await getMemoryStats(chatToken);
+      setMemoryStats(stats);
+    } catch (err) {
+      addToast({ type: "error", message: "Erro ao carregar estatísticas." });
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
+
+  const handleExport = async () => {
+    const selectedCollections = Object.entries(exportCollections)
+      .filter(([, selected]) => selected)
+      .map(([name]) => name);
+
+    if (selectedCollections.length === 0) {
+      addToast({ type: "error", message: "Selecione pelo menos uma coleção." });
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const data = await exportMemories(chatToken, selectedCollections);
+
+      // Cria e faz download do arquivo
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `memories_${chatToken.substring(0, 8)}_${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      addToast({ type: "success", message: "Memórias exportadas com sucesso!" });
+      setShowExportModal(false);
+    } catch (err) {
+      addToast({ type: "error", message: "Erro ao exportar memórias." });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // --- Import Handlers ---
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+
+        if (!["1.0", "1.1"].includes(data.version)) {
+          addToast({ type: "error", message: `Versão do arquivo não suportada: ${data.version}` });
+          return;
+        }
+
+        setImportFile(file);
+        setImportData(data);
+
+        // Pré-seleciona coleções disponíveis
+        const available = {};
+        if (data.collections) {
+          Object.keys(data.collections).forEach(key => {
+            available[key] = data.collections[key].length > 0;
+          });
+        }
+        setImportCollections(available);
+        setShowImportModal(true);
+      } catch (err) {
+        addToast({ type: "error", message: "Arquivo JSON inválido." });
+      }
+    };
+    reader.readAsText(file);
+
+    // Limpa input para permitir selecionar o mesmo arquivo novamente
+    e.target.value = "";
+  };
+
+  const handleImport = async () => {
+    const selectedCollections = Object.entries(importCollections)
+      .filter(([, selected]) => selected)
+      .map(([name]) => name);
+
+    if (selectedCollections.length === 0) {
+      addToast({ type: "error", message: "Selecione pelo menos uma coleção." });
+      return;
+    }
+
+    setIsImporting(true);
+    setImportProgress({ current: 0, total: 0 });
+
+    try {
+      const stats = await importMemories(chatToken, importData, selectedCollections, (current, total) => {
+        setImportProgress({ current, total });
+      });
+
+      addToast({
+        type: "success",
+        message: `Importação concluída! ${stats?.total || 0} itens importados.`
+      });
+
+      setShowImportModal(false);
+      setImportFile(null);
+      setImportData(null);
+    } catch (err) {
+      addToast({ type: "error", message: err.message || "Erro ao importar memórias." });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const listToRender = localVectorMemory.filter(item => {
     const matchesTab = item.category === activeTab;
     const matchesSearch = searchQuery.trim() === "" || item.text.toLowerCase().includes(searchQuery.toLowerCase());
@@ -128,15 +264,44 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
               Anotações do DM
             </h3>
 
-            {/* Botão de Adicionar (Sempre renderizado, mas invisível em Histórico) */}
-            <button
-              className={`${styles.addBtnHeader} ${activeTab === 'historico' ? styles.hidden : ''}`}
-              onClick={() => activeTab !== 'historico' && setShowAddModal(true)}
-              title={activeTab !== 'historico' ? `Adicionar em ${activeTab}` : ''}
-              disabled={activeTab === 'historico'}
-            >
-              <Plus size={16} />
-            </button>
+            <div className={styles.headerActions}>
+              {/* Botão Import */}
+              <button
+                className={styles.actionBtnHeader}
+                onClick={() => fileInputRef.current?.click()}
+                title="Importar memórias"
+              >
+                <Upload size={14} />
+              </button>
+
+              {/* Botão Export */}
+              <button
+                className={styles.actionBtnHeader}
+                onClick={handleOpenExport}
+                title="Exportar memórias"
+              >
+                <Download size={14} />
+              </button>
+
+              {/* Botão de Adicionar (Invisível em Histórico) */}
+              <button
+                className={`${styles.addBtnHeader} ${activeTab === 'historico' ? styles.hidden : ''}`}
+                onClick={() => activeTab !== 'historico' && setShowAddModal(true)}
+                title={activeTab !== 'historico' ? `Adicionar em ${activeTab}` : ''}
+                disabled={activeTab === 'historico'}
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+
+            {/* Input oculto para upload de arquivo */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept=".json"
+              style={{ display: "none" }}
+            />
           </div>
 
           <div className={styles.tabs}>
@@ -284,6 +449,190 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                 disabled={!newMemoryText.trim() || isSavingMemory}
               >
                 {isSavingMemory ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Exportação */}
+      {showExportModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <h4>
+                <Download size={18} />
+                Exportar Memórias
+              </h4>
+              <button onClick={() => setShowExportModal(false)} className={styles.modalCloseBtn}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className={styles.modalContent}>
+              <p className={styles.modalDescription}>
+                Selecione as coleções que deseja exportar:
+              </p>
+
+              {isLoadingStats ? (
+                <div className={styles.loadingSpinner}>Carregando...</div>
+              ) : (
+                <div className={styles.checkboxList}>
+                  {collections.map((c) => (
+                    <label key={c.id} className={styles.checkboxItem}>
+                      <input
+                        type="checkbox"
+                        checked={exportCollections[c.id] || false}
+                        onChange={(e) => setExportCollections({
+                          ...exportCollections,
+                          [c.id]: e.target.checked
+                        })}
+                      />
+                      <span className={styles.checkboxIcon}>
+                        {c.icon}
+                      </span>
+                      <span className={styles.checkboxLabel}>
+                        {c.label}
+                        <span className={styles.checkboxCount}>
+                          ({memoryStats[c.id] || 0} itens)
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button
+                className={styles.modalCancelBtn}
+                onClick={() => setShowExportModal(false)}
+                disabled={isExporting}
+              >
+                Cancelar
+              </button>
+              <button
+                className={styles.modalSaveBtn}
+                onClick={handleExport}
+                disabled={isExporting || isLoadingStats}
+              >
+                <Download size={14} />
+                {isExporting ? "Exportando..." : "Exportar JSON"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Importação */}
+      {showImportModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <h4>
+                <Upload size={18} />
+                Importar Memórias
+              </h4>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportData(null);
+                }}
+                className={styles.modalCloseBtn}
+                disabled={isImporting}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className={styles.modalContent}>
+              <div className={styles.importFileInfo}>
+                <FileJson size={24} />
+                <div>
+                  <span className={styles.fileName}>{importFile?.name}</span>
+                  {importData?.source?.chatTitle && (
+                    <span className={styles.fileSource}>
+                      Origem: {importData.source.chatTitle}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <p className={styles.modalDescription}>
+                Selecione o que deseja importar:
+              </p>
+
+              <div className={styles.checkboxList}>
+                {collections.map((c) => {
+                  const count = importData?.statistics?.[c.id] || 0;
+                  const hasData = count > 0;
+                  return (
+                    <label
+                      key={c.id}
+                      className={`${styles.checkboxItem} ${!hasData ? styles.disabled : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={importCollections[c.id] || false}
+                        onChange={(e) => setImportCollections({
+                          ...importCollections,
+                          [c.id]: e.target.checked
+                        })}
+                        disabled={!hasData || isImporting}
+                      />
+                      <span className={styles.checkboxIcon}>
+                        {c.icon}
+                      </span>
+                      <span className={styles.checkboxLabel}>
+                        {c.label}
+                        <span className={styles.checkboxCount}>
+                          ({count} itens)
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {isImporting && (
+                <div className={styles.progressContainer}>
+                  <div className={styles.progressBar}>
+                    <div
+                      className={styles.progressFill}
+                      style={{
+                        width: importProgress.total > 0
+                          ? `${(importProgress.current / importProgress.total) * 100}%`
+                          : "0%"
+                      }}
+                    />
+                  </div>
+                  <span className={styles.progressText}>
+                    {importProgress.current} / {importProgress.total}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button
+                className={styles.modalCancelBtn}
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportData(null);
+                }}
+                disabled={isImporting}
+              >
+                Cancelar
+              </button>
+              <button
+                className={styles.modalSaveBtn}
+                onClick={handleImport}
+                disabled={isImporting || !Object.values(importCollections).some(v => v)}
+              >
+                <Upload size={14} />
+                {isImporting ? "Importando..." : "Importar"}
               </button>
             </div>
           </div>

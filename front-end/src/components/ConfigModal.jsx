@@ -5,12 +5,30 @@ import { apiClient, updateChatConfig } from "../services/api"; // Importando hel
 import { useToast } from "../context/ToastContext";
 import styles from "./ConfigModal.module.css";
 
+// Modelos disponíveis por provedor
+const MODELS = {
+  gemini: [
+    { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
+    { id: "gemini-2.0-flash-thinking-exp", name: "Gemini 2.0 Flash Thinking" },
+  ],
+  anthropic: [
+    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" },
+    { id: "claude-opus-4-20250514", name: "Claude Opus 4" },
+    { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
+    { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku" },
+  ]
+};
+
 const ConfigModal = ({ chatToken, onClose }) => {
   const [config, setConfig] = useState({
+    llmProvider: "gemini",
     modelName: "gemini-2.5-pro",
     temperature: 0.7,
     systemInstruction: "",
     apiKey: "",
+    anthropicApiKey: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -24,10 +42,12 @@ const ConfigModal = ({ chatToken, onClose }) => {
         const currentConfig = response.data.config || {};
 
         setConfig({
+          llmProvider: currentConfig.llmProvider || "gemini",
           modelName: currentConfig.modelName || "gemini-2.5-pro",
           temperature: currentConfig.temperature ?? 0.7,
           systemInstruction: currentConfig.systemInstruction || "",
           apiKey: currentConfig.apiKey || "",
+          anthropicApiKey: currentConfig.anthropicApiKey || "",
         });
       } catch (error) {
         addToast({ type: "error", message: "Erro ao carregar configurações." });
@@ -58,6 +78,12 @@ const ConfigModal = ({ chatToken, onClose }) => {
     }
   };
 
+  const handleProviderChange = (newProvider) => {
+    // Ao mudar o provedor, atualiza o modelo padrão
+    const defaultModel = MODELS[newProvider]?.[0]?.id || "gemini-2.5-pro";
+    setConfig({ ...config, llmProvider: newProvider, modelName: defaultModel });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -73,6 +99,8 @@ const ConfigModal = ({ chatToken, onClose }) => {
 
   if (loading) return null;
 
+  const availableModels = MODELS[config.llmProvider] || MODELS.gemini;
+
   return (
     <div className={styles.overlay} onClick={handleBackdropClick}>
       <div className={styles.modal}>
@@ -84,31 +112,91 @@ const ConfigModal = ({ chatToken, onClose }) => {
         </div>
 
         <div className={styles.body}>
+          {/* Seleção do Provedor de LLM */}
           <div className={styles.field}>
-            <label>Modelo (Gemini ID)</label>
-            <input
-              type="text"
-              value={config.modelName}
-              onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
-              placeholder="ex: gemini-2.5-flash"
-            />
+            <label>Provedor de LLM (Narração)</label>
+            <div className={styles.providerToggle}>
+              <button
+                type="button"
+                className={`${styles.providerBtn} ${config.llmProvider === "gemini" ? styles.active : ""}`}
+                onClick={() => handleProviderChange("gemini")}
+              >
+                🔮 Gemini
+              </button>
+              <button
+                type="button"
+                className={`${styles.providerBtn} ${config.llmProvider === "anthropic" ? styles.active : ""}`}
+                onClick={() => handleProviderChange("anthropic")}
+              >
+                🤖 Claude
+              </button>
+            </div>
             <span className={styles.hint}>
-              Certifique-se de que o modelo é compatível com sua API Key.
+              O Gemini será usado para embeddings e busca vetorial, independente do provedor selecionado.
             </span>
           </div>
 
+          {/* Seleção do Modelo */}
           <div className={styles.field}>
-            <label>Gemini API Key</label>
+            <label>Modelo ({config.llmProvider === "gemini" ? "Gemini" : "Claude"})</label>
+            {config.llmProvider === "gemini" ? (
+              <select
+                value={config.modelName}
+                onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
+                className={styles.select}
+              >
+                {availableModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={config.modelName}
+                onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
+                placeholder="ex: claude-sonnet-4-20250514"
+              />
+            )}
+            <span className={styles.hint}>
+              {config.llmProvider === "gemini"
+                ? "Certifique-se de que o modelo é compatível com sua API Key."
+                : "Digite o identificador do modelo Claude (ex: claude-sonnet-4-20250514, claude-3-5-sonnet-20241022)."}
+            </span>
+          </div>
+
+          {/* API Key do Gemini (sempre necessária para embeddings) */}
+          <div className={styles.field}>
+            <label>Gemini API Key {config.llmProvider === "anthropic" ? "(apenas embeddings)" : ""}</label>
             <input
               type="password"
               value={config.apiKey || ""}
               onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-              placeholder="Cole sua API Key aqui..."
+              placeholder="Cole sua API Key do Gemini aqui..."
             />
             <span className={styles.hint}>
-              Sua chave será salva apenas para este chat.
+              {config.llmProvider === "anthropic"
+                ? "Necessária para busca vetorial e embeddings."
+                : "Sua chave será salva apenas para este chat."}
             </span>
           </div>
+
+          {/* API Key do Anthropic (apenas se o provedor for anthropic) */}
+          {config.llmProvider === "anthropic" && (
+            <div className={styles.field}>
+              <label>Claude API Key (Anthropic)</label>
+              <input
+                type="password"
+                value={config.anthropicApiKey || ""}
+                onChange={(e) => setConfig({ ...config, anthropicApiKey: e.target.value })}
+                placeholder="Cole sua API Key do Anthropic aqui..."
+              />
+              <span className={styles.hint}>
+                Sua chave do Anthropic será usada apenas para geração de texto.
+              </span>
+            </div>
+          )}
 
           <div className={styles.field}>
             <label>Temperatura ({config.temperature})</label>

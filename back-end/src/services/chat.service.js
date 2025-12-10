@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require("uuid");
 const lanceDBService = require("./lancedb.service");
 const chatStorage = require("./chatStorage.service");
 const geminiService = require("./gemini.service");
+const anthropicService = require("./anthropic.service");
 const config = require("../config");
 
 // Função auxiliar para contar palavras
@@ -30,10 +31,12 @@ async function createChat(userId) {
     updatedAt: new Date().toISOString(),
     userId: userId, // Salva o userId nos metadados
     config: {
+      llmProvider: "gemini", // "gemini" ou "anthropic"
       modelName: "gemini-2.5-pro",
       temperature: 1.0,
       systemInstruction: config.systemInstructionTemplate,
-      apiKey: "", // Inicializa vazio
+      apiKey: "", // API Key do Gemini (também usado para embeddings)
+      anthropicApiKey: "", // API Key do Anthropic (opcional, usado apenas se llmProvider === "anthropic")
       thinkingLevel: "high", // Default para Gemini 3.0
     },
   };
@@ -196,8 +199,14 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   const chatMetadata = await chatStorage.getChatMetadata(chatToken);
   if (!chatMetadata) throw new Error("Chat não encontrado.");
 
-  const { apiKey, modelName, temperature, systemInstruction, thinkingLevel } = chatMetadata.config;
-  if (!apiKey) throw new Error("API Key não configurada neste chat.");
+  const { llmProvider, apiKey, anthropicApiKey, modelName, temperature, systemInstruction, thinkingLevel } = chatMetadata.config;
+  if (!apiKey) throw new Error("API Key do Gemini não configurada (necessária para embeddings).");
+
+  // Se o provedor for Anthropic, valida a API Key do Anthropic
+  const isAnthropicProvider = llmProvider === "anthropic";
+  if (isAnthropicProvider && !anthropicApiKey) {
+    throw new Error("API Key do Anthropic não configurada.");
+  }
 
   // 2. Salva mensagem do usuário no histórico
   // Processa anexos se houver
@@ -451,12 +460,24 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   ];
 
   // Inicia Chat Session via wrapper do serviço
+  // Determina qual API Key usar para geração de texto
+  const llmApiKey = isAnthropicProvider ? anthropicApiKey : apiKey;
+
   const generationOptions = {
-    modelName,
+    modelName: isAnthropicProvider ? (modelName.startsWith("claude") ? modelName : "claude-sonnet-4-20250514") : modelName,
     temperature,
     tools,
-    apiKey,
-    thinkingConfig: thinkingLevel ? { thinkingLevel } : undefined
+    apiKey: llmApiKey,
+    thinkingConfig: !isAnthropicProvider && thinkingLevel ? { thinkingLevel } : undefined
+  };
+
+  // Função auxiliar para chamar o provedor correto
+  const generateResponse = async (history, systemInst, options) => {
+    if (isAnthropicProvider) {
+      return await anthropicService.generateChatResponse(history, systemInst, options);
+    } else {
+      return await geminiService.generateChatResponse(history, systemInst, options);
+    }
   };
 
   let loopCount = 0;
@@ -465,7 +486,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   let pendingDeletionsForResponse = null;
 
   // Primeira chamada
-  let currentResponse = await geminiService.generateChatResponse(conversationHistory, finalSystemInstruction, generationOptions);
+  let currentResponse = await generateResponse(conversationHistory, finalSystemInstruction, generationOptions);
 
   while (loopCount < 5) {
     const { text, functionCalls, parts } = currentResponse;
@@ -621,7 +642,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     });
 
     // Chama o modelo novamente com o histórico atualizado
-    currentResponse = await geminiService.generateChatResponse(conversationHistory, finalSystemInstruction, generationOptions);
+    currentResponse = await generateResponse(conversationHistory, finalSystemInstruction, generationOptions);
 
     loopCount++;
   }
@@ -805,6 +826,205 @@ async function branchChat(originalChatToken, targetMessageId, userId) {
   return newChatToken;
 }
 
+/**
+ * Exporta memórias de um chat para JSON.
+ * @param {string} chatToken - Token do chat.
+ * @param {Array<string>} collections - Coleções a exportar (ex: ["fatos", "conceitos", "historico"]).
+ * @returns {Promise<Object>} - Objeto JSON com as memórias exportadas.
+ */
+async function exportMemories(chatToken, collections = ["fatos", "conceitos"]) {
+  console.log(`[Service] Exportando memórias do chat ${chatToken}. Coleções: ${collections.join(", ")}`);
+
+  // Carrega metadados do chat
+  const chatMetadata = await chatStorage.getChatMetadata(chatToken);
+  if (!chatMetadata) throw new Error("Chat não encontrado.");
+
+  const exportData = {
+    version: "1.1", // Versão atualizada com suporte a embeddings
+    exportedAt: new Date().toISOString(),
+    source: {
+      chatId: chatToken,
+      chatTitle: chatMetadata.title || "Chat sem título"
+    },
+    embeddingDimension: config.embeddingDimension, // Dimensão dos embeddings para validação
+    statistics: {},
+    collections: {}
+  };
+
+  // Exporta cada coleção solicitada
+  for (const collectionName of collections) {
+    try {
+      const records = await lanceDBService.getAllRecordsFromCollection(chatToken, collectionName);
+
+      // Inclui vetores para reimportação rápida
+      const exportedRecords = records.map(record => ({
+        text: record.text,
+        role: record.role,
+        createdAt: record.createdAt,
+        // Inclui o vetor de embedding (converte para array simples)
+        vector: record.vector ? Array.from(record.vector) : null,
+        // Mantém flag de attachments para histórico
+        ...(record.attachments && collectionName === "historico" ? {
+          hasAttachments: true
+        } : {})
+      }));
+
+      exportData.collections[collectionName] = exportedRecords;
+      exportData.statistics[collectionName] = exportedRecords.length;
+
+      console.log(`[Service] Exportados ${exportedRecords.length} registros de '${collectionName}' (com embeddings).`);
+    } catch (err) {
+      console.warn(`[Service] Erro ao exportar coleção '${collectionName}':`, err.message);
+      exportData.collections[collectionName] = [];
+      exportData.statistics[collectionName] = 0;
+    }
+  }
+
+  return exportData;
+}
+
+/**
+ * Importa memórias de um JSON para um chat existente.
+ * @param {string} chatToken - Token do chat destino.
+ * @param {Object} data - Dados JSON a importar.
+ * @param {Array<string>} collections - Coleções a importar.
+ * @param {Function} onProgress - Callback de progresso (current, total).
+ * @returns {Promise<Object>} - Estatísticas da importação.
+ */
+async function importMemories(chatToken, data, collections, onProgress) {
+  console.log(`[Service] Importando memórias para chat ${chatToken}. Coleções: ${collections.join(", ")}`);
+
+  // Valida versão (aceita 1.0 e 1.1)
+  if (!["1.0", "1.1"].includes(data.version)) {
+    throw new Error(`Versão do arquivo não suportada: ${data.version}`);
+  }
+
+  // Carrega metadados do chat para obter API Key (pode ser necessária)
+  const chatMetadata = await chatStorage.getChatMetadata(chatToken);
+  if (!chatMetadata) throw new Error("Chat não encontrado.");
+
+  const apiKey = chatMetadata.config?.apiKey;
+
+  // Verifica se os embeddings no arquivo são compatíveis
+  const hasEmbeddings = data.version === "1.1" && data.embeddingDimension === config.embeddingDimension;
+
+  if (hasEmbeddings) {
+    console.log(`[Service] Arquivo contém embeddings compatíveis (${data.embeddingDimension}D). Importação rápida ativada.`);
+  } else {
+    console.log(`[Service] Arquivo sem embeddings ou incompatível. Será necessário gerar embeddings.`);
+    if (!apiKey) {
+      throw new Error("API Key do Gemini não configurada (necessária para gerar embeddings).");
+    }
+  }
+
+  const stats = {
+    imported: {},
+    total: 0,
+    errors: 0,
+    embeddingsReused: 0,
+    embeddingsGenerated: 0
+  };
+
+  // Calcula total para progresso
+  let totalItems = 0;
+  for (const collectionName of collections) {
+    if (data.collections && data.collections[collectionName]) {
+      totalItems += data.collections[collectionName].length;
+    }
+  }
+
+  let processedItems = 0;
+
+  // Importa cada coleção solicitada
+  for (const collectionName of collections) {
+    if (!data.collections || !data.collections[collectionName]) {
+      console.warn(`[Service] Coleção '${collectionName}' não encontrada no arquivo.`);
+      continue;
+    }
+
+    const records = data.collections[collectionName];
+    stats.imported[collectionName] = 0;
+
+    for (const record of records) {
+      try {
+        // Verifica se temos um embedding válido
+        const hasValidVector = hasEmbeddings && record.vector && Array.isArray(record.vector) && record.vector.length === config.embeddingDimension;
+
+        if (hasValidVector) {
+          // Importação rápida: usa o embedding existente
+          const messageid = `${uuidv4()}`;
+          const insertRecord = {
+            text: record.text,
+            role: record.role || "model",
+            messageid,
+            createdAt: record.createdAt || Date.now(),
+            vector: record.vector
+          };
+
+          await lanceDBService.insertRecord(chatToken, collectionName, insertRecord);
+          stats.embeddingsReused++;
+        } else {
+          // Importação lenta: gera novo embedding
+          await addMessage(
+            chatToken,
+            collectionName,
+            record.text,
+            record.role || "model",
+            [], // Sem anexos na importação
+            apiKey
+          );
+          stats.embeddingsGenerated++;
+
+          // Pequeno delay para evitar rate limit apenas quando gerando embeddings
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        stats.imported[collectionName]++;
+        stats.total++;
+        processedItems++;
+
+        // Reporta progresso
+        if (onProgress) {
+          onProgress(processedItems, totalItems);
+        }
+      } catch (err) {
+        console.error(`[Service] Erro ao importar registro:`, err.message);
+        stats.errors++;
+        processedItems++;
+
+        if (onProgress) {
+          onProgress(processedItems, totalItems);
+        }
+      }
+    }
+
+    console.log(`[Service] Importados ${stats.imported[collectionName]} registros para '${collectionName}'.`);
+  }
+
+  console.log(`[Service] Importação concluída. Embeddings reutilizados: ${stats.embeddingsReused}, Gerados: ${stats.embeddingsGenerated}`);
+  return stats;
+}
+
+/**
+ * Obtém estatísticas das memórias de um chat (para exibir contagem antes de exportar).
+ * @param {string} chatToken - Token do chat.
+ * @returns {Promise<Object>} - Estatísticas por coleção.
+ */
+async function getMemoryStats(chatToken) {
+  const stats = {};
+
+  for (const collectionName of config.collectionNames) {
+    try {
+      const records = await lanceDBService.getAllRecordsFromCollection(chatToken, collectionName);
+      stats[collectionName] = records.length;
+    } catch (err) {
+      stats[collectionName] = 0;
+    }
+  }
+
+  return stats;
+}
+
 module.exports = {
   createChat,
   getAllChats,
@@ -819,5 +1039,8 @@ module.exports = {
   searchMessages,
   handleChatGeneration,
   importChat,
-  branchChat
+  branchChat,
+  exportMemories,
+  importMemories,
+  getMemoryStats
 };

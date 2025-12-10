@@ -36,6 +36,18 @@ router.delete("/message/:chatToken/:messageid", chatController.deleteMessage);
 // POST /api/chat/:chatToken/memories/delete
 router.post("/:chatToken/memories/delete", chatController.deleteMemories);
 
+// Obter estatísticas de memórias
+// GET /api/chat/:chatToken/memories/stats
+router.get("/:chatToken/memories/stats", chatController.getMemoryStats);
+
+// Exportar memórias
+// GET /api/chat/:chatToken/memories/export?collections=fatos,conceitos
+router.get("/:chatToken/memories/export", chatController.exportMemories);
+
+// Importar memórias (SSE para progresso)
+// POST /api/chat/:chatToken/memories/import
+router.post("/:chatToken/memories/import", chatController.importMemories);
+
 // Buscar mensagens
 // POST /api/chat/search/:chatToken/:collectionName
 router.post(

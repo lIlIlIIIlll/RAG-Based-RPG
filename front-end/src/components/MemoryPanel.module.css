@@ -450,6 +450,290 @@
   color: var(--accent-primary);
 }
 
+/* --- HEADER ACTIONS (Import/Export Buttons) --- */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.actionBtnHeader {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.actionBtnHeader:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* --- MODAL ENHANCED --- */
+.modalContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modalDescription {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.modalHeader h4 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 8px;
+}
+
+.modalCancelBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modalCancelBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.modalCancelBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modalSaveBtn {
+  background: var(--accent-primary);
+  color: #000;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
+}
+
+.modalSaveBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 215, 0, 0.3);
+}
+
+.modalSaveBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* --- CHECKBOX LIST --- */
+.checkboxList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.checkboxItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.checkboxItem:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.checkboxItem.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.checkboxItem input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.checkboxItem input[type="checkbox"]:checked {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.checkboxItem input[type="checkbox"]:checked::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #000;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.checkboxItem input[type="checkbox"]:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.checkboxIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 6px;
+  color: var(--accent-primary);
+}
+
+.checkboxLabel {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.checkboxCount {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* --- IMPORT FILE INFO --- */
+.importFileInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(255, 215, 0, 0.05);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: 8px;
+}
+
+.importFileInfo svg {
+  color: var(--accent-primary);
+}
+
+.importFileInfo>div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fileName {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.fileSource {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* --- PROGRESS BAR --- */
+.progressContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+
+.progressBar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-primary), #ffd93d);
+  border-radius: 4px;
+  transition: width 0.3s ease-out;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  animation: progressGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes progressGlow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  }
+}
+
+.progressText {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+/* --- LOADING SPINNER --- */
+.loadingSpinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 @media (max-width: 768px) {
   .memoryPanelContainer {
     position: absolute;
