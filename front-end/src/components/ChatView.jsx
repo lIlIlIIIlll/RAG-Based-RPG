@@ -67,6 +67,23 @@ const ChatView = ({ chatToken }) => {
   }, [chatToken, addToast]);
 
   const handleSendMessage = async (userMessage, files = []) => {
+    // Verificar se API Key está configurada (exceto para comandos de dados locais)
+    if (!userMessage.startsWith('/r ')) {
+      try {
+        const chatDetails = await apiClient.get(`/chat/${chatToken}`);
+        if (!chatDetails.data?.config?.apiKey) {
+          addToast({
+            type: "warning",
+            message: "Configure a API Key nas configurações antes de enviar mensagens."
+          });
+          return;
+        }
+      } catch (err) {
+        // Se não conseguir verificar, permite continuar (erro será tratado na geração)
+        console.warn("Não foi possível verificar a API Key:", err);
+      }
+    }
+
     // Check for dice command
     if (userMessage.startsWith('/r ')) {
       const commandData = parseDiceCommand(userMessage);
