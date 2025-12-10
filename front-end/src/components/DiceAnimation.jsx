@@ -7,6 +7,8 @@ const DiceAnimation = ({ rollData, onComplete }) => {
     const [isRolling, setIsRolling] = useState(true);
 
     useEffect(() => {
+        let completeTimeout = null; // Track the onComplete timeout
+
         // Initialize dice with random values
         const initialDice = rollData.rolls.map(() => ({
             value: '?',
@@ -45,7 +47,7 @@ const DiceAnimation = ({ rollData, onComplete }) => {
             setShowTotal(true);
 
             // Close after showing result
-            setTimeout(() => {
+            completeTimeout = setTimeout(() => {
                 onComplete();
             }, 2000);
 
@@ -54,6 +56,7 @@ const DiceAnimation = ({ rollData, onComplete }) => {
         return () => {
             clearInterval(interval);
             clearTimeout(timeout);
+            if (completeTimeout) clearTimeout(completeTimeout);
         };
     }, [rollData, onComplete]);
 
