@@ -2,7 +2,7 @@
 
 /* CSS Variables for RPG Theme */
 :root {
-  --memory-bg: linear-gradient(180deg, #0d0d0f 0%, #0a0a0c 50%, #080809 100%);
+  --memory-bg: linear-gradient(180deg, rgba(15, 12, 20, 0.98) 0%, rgba(5, 5, 10, 0.95) 100%);
   --memory-border: rgba(212, 160, 23, 0.15);
   --memory-glow: rgba(212, 160, 23, 0.3);
 }
