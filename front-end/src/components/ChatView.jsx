@@ -336,6 +336,7 @@ const ChatView = ({ chatToken }) => {
         onPreviewFile={handlePreviewFile}
         onMassDelete={handleMassDelete}
         onBranch={handleBranch}
+        chatToken={chatToken}
       />
       <MemoryPanel chatToken={chatToken} vectorMemory={vectorMemory} />
 

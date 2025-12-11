@@ -1,5 +1,5 @@
 // src/components/ChatWindow.jsx
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Message from "./Message.jsx";
 import LoadingIndicator from "./LoadingIndicator.jsx";
 import FileCard from "./FileCard.jsx";
@@ -16,7 +16,8 @@ const ChatWindow = ({
     onRegenerate,
     onPreviewFile,
     onMassDelete,
-    onBranch
+    onBranch,
+    chatToken
 }) => {
     const [inputText, setInputText] = useState("");
     const [selectedFiles, setSelectedFiles] = useState([]);
@@ -24,6 +25,28 @@ const ChatWindow = ({
     const [selectedMessages, setSelectedMessages] = useState(new Set());
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
+
+    // Auto-save draft to localStorage
+    useEffect(() => {
+        if (chatToken) {
+            const draft = localStorage.getItem(`draft_${chatToken}`);
+            if (draft) setInputText(draft);
+        }
+    }, [chatToken]);
+
+    useEffect(() => {
+        if (chatToken) {
+            if (inputText) {
+                localStorage.setItem(`draft_${chatToken}`, inputText);
+            } else {
+                localStorage.removeItem(`draft_${chatToken}`);
+            }
+        }
+    }, [inputText, chatToken]);
+
+    // Calculate word and token count
+    const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
+    const tokenEstimate = Math.ceil(inputText.length / 4);
 
     // Ajusta altura do textarea automaticamente
     const handleInput = (e) => {
@@ -198,7 +221,10 @@ const ChatWindow = ({
                                 <div style={{ paddingBottom: "120px", paddingLeft: "40px", paddingRight: "40px" }}>
                                     {isLoading && (
                                         <div className={styles.loadingContainer}>
-                                            <LoadingIndicator />
+                                            <div className={styles.typingIndicator}>
+                                                <span>O Mestre está pensando</span>
+                                                <span className={styles.typingDots}></span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -271,7 +297,12 @@ const ChatWindow = ({
                     </button>
                 </form>
                 <div className={styles.footerNote}>
-                    Enter para enviar / Shift+Enter para quebrar linha
+                    <span>Enter para enviar / Shift+Enter para quebrar linha</span>
+                    {inputText.length > 0 && (
+                        <span className={styles.inputStats}>
+                            {wordCount} palavras · ~{tokenEstimate} tokens
+                        </span>
+                    )}
                 </div>
             </div>
         </div>
