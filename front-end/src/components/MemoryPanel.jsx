@@ -359,8 +359,18 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
 
                   {items.map((item, index) => {
                     const isEditing = item.messageid === editingId;
+                    const tooltipText = [
+                      item._score != null ? `Relevância: ${(item._score * 100).toFixed(0)}%` : null,
+                      item.createdAt ? `Criado: ${new Date(item.createdAt).toLocaleDateString('pt-BR')}` : null,
+                      item.messageid ? `ID: ${item.messageid.slice(0, 8)}...` : null
+                    ].filter(Boolean).join(' | ');
+
                     return (
-                      <div key={item.messageid || index} className={styles.memoryItem}>
+                      <div
+                        key={item.messageid || index}
+                        className={styles.memoryItem}
+                        title={tooltipText}
+                      >
                         {isEditing ? (
                           <div className={styles.editContainer}>
                             <textarea

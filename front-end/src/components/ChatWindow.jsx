@@ -3,7 +3,7 @@ import React, { useRef, useState, useEffect } from "react";
 import Message from "./Message.jsx";
 import LoadingIndicator from "./LoadingIndicator.jsx";
 import FileCard from "./FileCard.jsx";
-import { Send, Paperclip, Trash2, X, CheckSquare } from "lucide-react";
+import { Send, Paperclip, Trash2, X, CheckSquare, Dice6 } from "lucide-react";
 import styles from "./ChatWindow.module.css";
 import { Virtuoso } from "react-virtuoso";
 
@@ -25,6 +25,13 @@ const ChatWindow = ({
     const [selectedMessages, setSelectedMessages] = useState(new Set());
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
+
+    // Dice command history
+    const [diceHistory, setDiceHistory] = useState(() => {
+        const saved = localStorage.getItem('diceHistory');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [showDiceHistory, setShowDiceHistory] = useState(false);
 
     // Auto-save draft to localStorage
     useEffect(() => {
@@ -82,6 +89,24 @@ const ChatWindow = ({
         target.style.height = "auto";
         target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
         setInputText(target.value);
+
+        // Show dice history dropdown when typing /r
+        setShowDiceHistory(target.value.startsWith('/r') && diceHistory.length > 0);
+    };
+
+    // Save dice command to history
+    const saveDiceCommand = (command) => {
+        if (command.startsWith('/r ')) {
+            const newHistory = [command, ...diceHistory.filter(c => c !== command)].slice(0, 5);
+            setDiceHistory(newHistory);
+            localStorage.setItem('diceHistory', JSON.stringify(newHistory));
+        }
+    };
+
+    const selectDiceCommand = (command) => {
+        setInputText(command);
+        setShowDiceHistory(false);
+        textareaRef.current?.focus();
     };
 
     const handleFileSelect = (e) => {
@@ -134,9 +159,13 @@ const ChatWindow = ({
         event.preventDefault();
         const trimmedText = inputText.trim();
         if ((trimmedText || selectedFiles.length > 0) && !isLoading) {
+            // Save dice command to history
+            saveDiceCommand(trimmedText);
+
             onSendMessage(trimmedText, selectedFiles);
             setInputText("");
             setSelectedFiles([]);
+            setShowDiceHistory(false);
             if (textareaRef.current) textareaRef.current.style.height = "auto";
         }
     };
@@ -323,6 +352,26 @@ const ChatWindow = ({
                     >
                         <Send size={20} />
                     </button>
+
+                    {/* Dice History Dropdown */}
+                    {showDiceHistory && (
+                        <div className={styles.diceHistoryDropdown}>
+                            <div className={styles.diceHistoryHeader}>
+                                <Dice6 size={14} />
+                                <span>Histórico de dados</span>
+                            </div>
+                            {diceHistory.map((cmd, i) => (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    className={styles.diceHistoryItem}
+                                    onClick={() => selectDiceCommand(cmd)}
+                                >
+                                    {cmd}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </form>
                 <div className={styles.footerNote}>
                     <span>Enter para enviar / Shift+Enter para quebrar linha</span>
