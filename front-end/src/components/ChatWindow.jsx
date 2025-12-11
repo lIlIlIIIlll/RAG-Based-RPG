@@ -284,8 +284,17 @@ const ChatWindow = ({
                                     {isLoading && (
                                         <div className={styles.loadingContainer}>
                                             <div className={styles.typingIndicator}>
-                                                <span>O Mestre está pensando</span>
-                                                <span className={styles.typingDots}></span>
+                                                <div className={styles.magicOrb}>
+                                                    <div className={styles.orbCore}></div>
+                                                    <div className={styles.orbRing}></div>
+                                                    <div className={styles.orbParticles}>
+                                                        <span></span><span></span><span></span><span></span>
+                                                    </div>
+                                                </div>
+                                                <div className={styles.typingText}>
+                                                    <span className={styles.typingLabel}>O Mestre está conjurando</span>
+                                                    <span className={styles.typingDots}></span>
+                                                </div>
                                             </div>
                                         </div>
                                     )}

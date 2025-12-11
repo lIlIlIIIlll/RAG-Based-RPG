@@ -206,44 +206,211 @@
   opacity: 0.8;
 }
 
-/* Typing Indicator */
+/* Typing Indicator - Magical RPG Theme */
 .typingIndicator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 14px;
+  gap: 16px;
+  padding: 20px 28px;
+  background: linear-gradient(135deg, rgba(20, 15, 30, 0.95) 0%, rgba(10, 10, 20, 0.9) 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(255, 215, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: indicatorPulse 3s ease-in-out infinite;
+}
+
+@keyframes indicatorPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.1);
+  }
+
+  50% {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 60px rgba(255, 215, 0, 0.2);
+  }
+}
+
+/* Magical Orb */
+.magicOrb {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.orbCore {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  background: radial-gradient(circle, #ffd700 0%, #ff8c00 50%, #ff4500 100%);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 20px #ffd700,
+    0 0 40px rgba(255, 215, 0, 0.5),
+    0 0 60px rgba(255, 140, 0, 0.3);
+  animation: orbPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes orbPulse {
+
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 20px #ffd700, 0 0 40px rgba(255, 215, 0, 0.5);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    box-shadow: 0 0 30px #ffd700, 0 0 60px rgba(255, 215, 0, 0.7);
+  }
+}
+
+.orbRing {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  border: 2px solid transparent;
+  border-top-color: rgba(255, 215, 0, 0.6);
+  border-right-color: rgba(255, 215, 0, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: orbSpin 2s linear infinite;
+}
+
+@keyframes orbSpin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.orbParticles {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.orbParticles span {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: #ffd700;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #ffd700;
+  animation: particleFloat 2s ease-in-out infinite;
+}
+
+.orbParticles span:nth-child(1) {
+  top: 0;
+  left: 50%;
+  animation-delay: 0s;
+}
+
+.orbParticles span:nth-child(2) {
+  top: 50%;
+  right: 0;
+  animation-delay: 0.5s;
+}
+
+.orbParticles span:nth-child(3) {
+  bottom: 0;
+  left: 50%;
+  animation-delay: 1s;
+}
+
+.orbParticles span:nth-child(4) {
+  top: 50%;
+  left: 0;
+  animation-delay: 1.5s;
+}
+
+@keyframes particleFloat {
+
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.5);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* Typing Text */
+.typingText {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.typingLabel {
+  font-size: 15px;
+  font-weight: 500;
   font-style: italic;
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 16px;
-  border: 1px solid var(--border-subtle);
+  background: linear-gradient(90deg, #e0e0e0 0%, #ffd700 50%, #e0e0e0 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% center;
+  }
+
+  100% {
+    background-position: -200% center;
+  }
 }
 
 .typingDots {
   display: inline-block;
   width: 24px;
+  color: #ffd700;
+  font-weight: bold;
 }
 
 .typingDots::after {
   content: '';
-  animation: typingDots 1.5s infinite;
+  animation: magicDots 1.5s steps(1) infinite;
 }
 
-@keyframes typingDots {
+@keyframes magicDots {
 
   0%,
-  20% {
-    content: '.';
+  25% {
+    content: '✦';
   }
 
-  40% {
-    content: '..';
+  25%,
+  50% {
+    content: '✦✦';
   }
 
-  60%,
+  50%,
+  75% {
+    content: '✦✦✦';
+  }
+
+  75%,
   100% {
-    content: '...';
+    content: '✦';
   }
 }
 
