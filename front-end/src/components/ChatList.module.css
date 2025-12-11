@@ -88,6 +88,67 @@
   transform: scale(0.98);
 }
 
+/* Search and Sort */
+.searchSortContainer {
+  padding: 0 16px 12px 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.searchBox {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.searchBox:focus-within {
+  border-color: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.searchInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.searchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.sortSelect {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.sortSelect:hover,
+.sortSelect:focus {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.sortSelect option {
+  background: #1a1a1a;
+  color: var(--text-primary);
+}
+
 /* Lista de Chats */
 .listContainer {
   flex: 1;

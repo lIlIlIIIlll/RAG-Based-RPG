@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from "react";
-import { MessageSquare, Trash2, Plus, Settings, ChevronLeft, ChevronRight, Edit2, Check, X, LogOut, Upload } from "lucide-react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { MessageSquare, Trash2, Plus, Settings, ChevronLeft, ChevronRight, Edit2, Check, X, LogOut, Upload, Search, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,6 +31,30 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
   const { confirm } = useConfirmation();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+
+  // Search and sort state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("updatedAt"); // 'updatedAt', 'createdAt', 'title'
+
+  // Filtered and sorted chats
+  const filteredAndSortedChats = useMemo(() => {
+    let result = chats;
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      result = result.filter(chat =>
+        (chat.title || "Campanha").toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Sort
+    return [...result].sort((a, b) => {
+      if (sortBy === 'title') {
+        return (a.title || "Campanha").localeCompare(b.title || "Campanha");
+      }
+      return new Date(b[sortBy] || b.createdAt) - new Date(a[sortBy] || a.createdAt);
+    });
+  }, [chats, searchTerm, sortBy]);
 
   // Busca a lista de chats ao carregar
   const fetchChats = async () => {
@@ -304,15 +328,41 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
           />
         </div>
 
+        {/* Search and Sort - only when expanded */}
+        {!collapsed && (
+          <div className={styles.searchSortContainer}>
+            <div className={styles.searchBox}>
+              <Search size={14} />
+              <input
+                type="text"
+                placeholder="Buscar campanha..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={styles.searchInput}
+              />
+            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className={styles.sortSelect}
+              title="Ordenar por"
+            >
+              <option value="updatedAt">Última atualização</option>
+              <option value="createdAt">Data de criação</option>
+              <option value="title">Alfabético</option>
+            </select>
+          </div>
+        )}
+
         <div className={styles.listContainer}>
           {loading ? (
             <div className={styles.loading}>Carregando...</div>
-          ) : chats.length === 0 ? (
+          ) : filteredAndSortedChats.length === 0 ? (
             <div className={styles.emptyState}>
-              {!collapsed && "Nenhum chat encontrado."}
+              {!collapsed && (searchTerm ? "Nenhuma campanha encontrada." : "Nenhum chat encontrado.")}
             </div>
           ) : (
-            chats.map((chat) => (
+            filteredAndSortedChats.map((chat) => (
               <div
                 key={chat.id}
                 className={`${styles.chatItem} ${activeChatToken === chat.id ? styles.active : ""} `}
