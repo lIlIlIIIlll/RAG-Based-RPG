@@ -380,38 +380,32 @@
   }
 }
 
-.typingDots {
-  display: inline-block;
-  width: 24px;
+.typingStar {
   color: #ffd700;
-  font-weight: bold;
+  font-size: 14px;
+  animation: starPulse 1.5s ease-in-out infinite;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
 }
 
-.typingDots::after {
-  content: '';
-  animation: magicDots 1.5s steps(1) infinite;
+.typingStar:first-child {
+  animation-delay: 0s;
 }
 
-@keyframes magicDots {
+.typingStar:last-child {
+  animation-delay: 0.75s;
+}
+
+@keyframes starPulse {
 
   0%,
-  25% {
-    content: '✦';
-  }
-
-  25%,
-  50% {
-    content: '✦✦';
-  }
-
-  50%,
-  75% {
-    content: '✦✦✦';
-  }
-
-  75%,
   100% {
-    content: '✦';
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
   }
 }
 

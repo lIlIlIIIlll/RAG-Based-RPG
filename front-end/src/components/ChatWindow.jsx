@@ -292,8 +292,9 @@ const ChatWindow = ({
                                                     </div>
                                                 </div>
                                                 <div className={styles.typingText}>
+                                                    <span className={styles.typingStar}>✦</span>
                                                     <span className={styles.typingLabel}>O Mestre está conjurando</span>
-                                                    <span className={styles.typingDots}></span>
+                                                    <span className={styles.typingStar}>✦</span>
                                                 </div>
                                             </div>
                                         </div>
