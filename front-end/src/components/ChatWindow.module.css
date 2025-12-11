@@ -11,6 +11,7 @@
 
 .messageList {
   overflow-y: auto;
+  overflow-x: visible;
   height: 90%;
   padding: 40px 40px 120px 40px;
   /* Extra padding bottom for floating input */
