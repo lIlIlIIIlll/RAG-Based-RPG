@@ -23,6 +23,7 @@ const ChatWindow = ({
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedMessages, setSelectedMessages] = useState(new Set());
+    const [editingMessageId, setEditingMessageId] = useState(null);
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
 
@@ -73,8 +74,8 @@ const ChatWindow = ({
                 messages.length > 0) {
                 e.preventDefault();
                 const lastMsg = messages[messages.length - 1];
-                if (lastMsg?.messageid && onEditMessage) {
-                    onEditMessage(lastMsg.messageid, lastMsg.text);
+                if (lastMsg?.messageid) {
+                    setEditingMessageId(lastMsg.messageid);
                 }
             }
         };
@@ -269,6 +270,10 @@ const ChatWindow = ({
                                     isSelected={selectedMessages.has(msg.messageid)}
                                     onToggleSelection={() => handleSelectMessage(msg.messageid)}
                                     onBranch={onBranch}
+                                    forceEditMode={editingMessageId === msg.messageid}
+                                    onEditModeChange={(isEditing) => {
+                                        if (!isEditing) setEditingMessageId(null);
+                                    }}
                                 />
                             </div>
                         )}

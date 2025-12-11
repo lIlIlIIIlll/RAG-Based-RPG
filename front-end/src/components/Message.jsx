@@ -17,7 +17,9 @@ const Message = ({
   isSelectionMode,
   isSelected,
   onToggleSelection,
-  onBranch
+  onBranch,
+  forceEditMode,
+  onEditModeChange
 }) => {
   const { role, text, messageid, attachments } = msg;
   const isUser = role === "user";
@@ -34,6 +36,21 @@ const Message = ({
       textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
     }
   }, [editText, isEditing]);
+
+  // Handle forceEditMode from parent (arrow up shortcut)
+  useEffect(() => {
+    if (forceEditMode && !isEditing) {
+      setIsEditing(true);
+      setEditText(text);
+    }
+  }, [forceEditMode]);
+
+  // Notify parent when edit mode changes
+  useEffect(() => {
+    if (onEditModeChange) {
+      onEditModeChange(isEditing);
+    }
+  }, [isEditing, onEditModeChange]);
 
   // Extrai arquivos do texto e limpa o texto para exibição
   const { cleanText, files } = useMemo(() => {
