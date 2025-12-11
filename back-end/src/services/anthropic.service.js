@@ -122,6 +122,10 @@ function convertHistoryToAnthropic(geminiHistory) {
 
     const anthropicMessages = [];
 
+    // Rastreia quais tool_use_ids já foram consumidos por um tool_result
+    // Isso evita que múltiplos tool_results usem o mesmo ID
+    const consumedToolUseIds = new Set();
+
     for (const msg of geminiHistory) {
         const role = msg.role === "model" ? "assistant" : msg.role === "function" ? "user" : "user";
         const content = [];
@@ -166,15 +170,21 @@ function convertHistoryToAnthropic(geminiHistory) {
                     const toolName = part.functionResponse.name;
 
                     // Procura o toolUseId correspondente nas mensagens anteriores
+                    // que ainda NÃO foi consumido por outro tool_result
                     let matchingToolUseId = null;
                     for (let i = anthropicMessages.length - 1; i >= 0; i--) {
                         const prevMsg = anthropicMessages[i];
                         if (prevMsg.role === "assistant") {
+                            // Procura um tool_use com o mesmo nome que ainda não foi consumido
                             const toolUse = prevMsg.content.find(c =>
-                                c.type === "tool_use" && c.name === toolName
+                                c.type === "tool_use" &&
+                                c.name === toolName &&
+                                !consumedToolUseIds.has(c.id)
                             );
                             if (toolUse) {
                                 matchingToolUseId = toolUse.id;
+                                // Marca este ID como consumido para não reusar
+                                consumedToolUseIds.add(toolUse.id);
                                 break;
                             }
                         }
@@ -230,6 +240,25 @@ function convertHistoryToAnthropic(geminiHistory) {
             } else {
                 validatedMessages.push(msg);
             }
+        }
+    }
+
+    // DEDUPLICAÇÃO FINAL: Remove tool_results duplicados (mesmo tool_use_id)
+    // Isso pode acontecer quando mensagens são merged ou quando o histórico
+    // contém duplicatas de processamentos anteriores
+    const seenToolResultIds = new Set();
+    for (const msg of validatedMessages) {
+        if (msg.content && Array.isArray(msg.content)) {
+            msg.content = msg.content.filter(block => {
+                if (block.type === "tool_result") {
+                    if (seenToolResultIds.has(block.tool_use_id)) {
+                        console.warn(`[Anthropic] Removendo tool_result duplicado: ${block.tool_use_id}`);
+                        return false; // Remove duplicata
+                    }
+                    seenToolResultIds.add(block.tool_use_id);
+                }
+                return true;
+            });
         }
     }
 
