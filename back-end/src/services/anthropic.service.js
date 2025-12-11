@@ -111,6 +111,8 @@ function convertToolsToAnthropic(geminiTools) {
 
 /**
  * Converte histórico do formato Gemini para o formato Anthropic.
+ * Tool calls do Gemini são convertidas em texto narrativo para garantir
+ * compatibilidade cross-provider (evita erros de tool_use_id não correspondente).
  * @param {Array} geminiHistory - Histórico no formato Gemini.
  * @returns {Array} Histórico no formato Anthropic.
  */
@@ -137,12 +139,23 @@ function convertHistoryToAnthropic(geminiHistory) {
                             data: part.inlineData.data
                         }
                     });
-                } else if (part.functionResponse) {
-                    // Resposta de tool - Anthropic usa tool_result
+                } else if (part.functionCall) {
+                    // Tool call do Gemini - converte em texto narrativo
+                    // Isso garante compatibilidade quando o usuário troca de provider mid-conversation
+                    const toolName = part.functionCall.name;
+                    const toolArgs = JSON.stringify(part.functionCall.args || {}, null, 2);
                     content.push({
-                        type: "tool_result",
-                        tool_use_id: part.functionResponse.name, // Usamos name como ID temporário
-                        content: JSON.stringify(part.functionResponse.response)
+                        type: "text",
+                        text: `[Ação do Sistema: Executando ferramenta "${toolName}" com parâmetros: ${toolArgs}]`
+                    });
+                } else if (part.functionResponse) {
+                    // Resposta de tool do Gemini - converte em texto narrativo
+                    // Não usa tool_result pois não há tool_use_id correspondente do Claude
+                    const toolName = part.functionResponse.name;
+                    const toolResult = JSON.stringify(part.functionResponse.response || {});
+                    content.push({
+                        type: "text",
+                        text: `[Resultado da ferramenta "${toolName}": ${toolResult}]`
                     });
                 }
             }
