@@ -6,7 +6,7 @@
   width: 100%;
   height: 100%;
   position: relative;
-  /* Background is handled by App container */
+  background: linear-gradient(180deg, rgba(10, 8, 14, 0.98) 0%, rgba(5, 4, 8, 0.99) 100%);
 }
 
 .messageList {
