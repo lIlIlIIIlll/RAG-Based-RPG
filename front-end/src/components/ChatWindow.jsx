@@ -292,9 +292,8 @@ const ChatWindow = ({
                                                     </div>
                                                 </div>
                                                 <div className={styles.typingText}>
-                                                    <span className={styles.typingStar}>✦</span>
                                                     <span className={styles.typingLabel}>O Mestre está conjurando</span>
-                                                    <span className={styles.typingStar}>✦</span>
+                                                    <span className={styles.typingDots}></span>
                                                 </div>
                                             </div>
                                         </div>
@@ -356,7 +355,7 @@ const ChatWindow = ({
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
                         className={styles.textInput}
-                        placeholder="Envie uma mensagem... (Shift+Enter para pular linha)"
+                        placeholder="Faça sua ação..."
                         rows={1}
                         disabled={isLoading}
                     />

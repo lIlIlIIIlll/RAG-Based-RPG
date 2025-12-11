@@ -248,6 +248,12 @@ const Message = ({
                 className={styles.editTextarea}
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setIsEditing(false);
+                  }
+                }}
                 autoFocus
                 rows={1}
                 onClick={(e) => e.stopPropagation()}
