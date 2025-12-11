@@ -63,7 +63,18 @@ const AuthPage = () => {
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             setLoadingStatus('error');
-            setErrorMessage(error.response?.data?.error || "Falha na autenticação");
+
+            // Handle rate limiting (429) and auth errors with remaining attempts
+            const responseData = error.response?.data;
+            let errorMsg = responseData?.error || "Falha na autenticação";
+
+            if (responseData?.remainingAttempts !== undefined && responseData.remainingAttempts > 0) {
+                errorMsg += ` (${responseData.remainingAttempts} tentativa(s) restante(s))`;
+            } else if (error.response?.status === 429) {
+                // Already includes the time in the error message from backend
+            }
+
+            setErrorMessage(errorMsg);
 
             setTimeout(() => {
                 setIsLoading(false);
