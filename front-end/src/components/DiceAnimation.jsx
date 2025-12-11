@@ -1,13 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import styles from './DiceAnimation.module.css';
 
+// Map dice type to CSS class
+const getDiceShapeClass = (diceType) => {
+    const type = parseInt(diceType, 10);
+    switch (type) {
+        case 4: return styles.d4;
+        case 6: return styles.d6;
+        case 8: return styles.d8;
+        case 10: return styles.d10;
+        case 12: return styles.d12;
+        case 20: return styles.d20;
+        case 100: return styles.d100;
+        default: return styles.d6; // Fallback to cube
+    }
+};
+
 const DiceAnimation = ({ rollData, onComplete }) => {
     const [visibleDice, setVisibleDice] = useState([]);
     const [showTotal, setShowTotal] = useState(false);
     const [isRolling, setIsRolling] = useState(true);
 
     useEffect(() => {
-        let completeTimeout = null; // Track the onComplete timeout
+        let completeTimeout = null;
 
         // Initialize dice with random values
         const initialDice = rollData.rolls.map(() => ({
@@ -60,16 +75,21 @@ const DiceAnimation = ({ rollData, onComplete }) => {
         };
     }, [rollData, onComplete]);
 
+    const shapeClass = getDiceShapeClass(rollData.type);
+
     return (
         <div className={styles.overlay}>
             <div className={styles.container}>
+                <div className={styles.diceLabel}>
+                    {rollData.notation}
+                </div>
                 <div className={styles.diceContainer}>
                     {visibleDice.map((die, idx) => (
                         <div
                             key={idx}
-                            className={`${styles.die} ${isRolling ? styles.rolling : styles.landed}`}
+                            className={`${styles.die} ${shapeClass} ${isRolling ? styles.rolling : styles.landed}`}
                         >
-                            {die.value}
+                            <span className={styles.dieValue}>{die.value}</span>
                         </div>
                     ))}
                 </div>
@@ -85,3 +105,4 @@ const DiceAnimation = ({ rollData, onComplete }) => {
 };
 
 export default DiceAnimation;
+
