@@ -647,6 +647,11 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     loopCount++;
   }
 
+  // Se o loop terminou por limite mas a última resposta tem texto, usa ele
+  if (!finalModelResponseText && currentResponse && currentResponse.text) {
+    finalModelResponseText = currentResponse.text;
+  }
+
   // Salva resposta final
   const modelResponse = finalModelResponseText || "Desculpe, não consegui processar sua solicitação.";
 
