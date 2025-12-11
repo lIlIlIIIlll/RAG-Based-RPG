@@ -54,19 +54,17 @@
   width: 24px;
   height: 48px;
   border-radius: 8px 0 0 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--memory-border);
   border-right: none;
-  background-color: #0a0a0a;
-  color: var(--text-secondary);
+  background: linear-gradient(180deg, rgba(15, 12, 20, 0.98) 0%, rgba(5, 5, 10, 0.95) 100%);
+  color: var(--accent-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
-  /* Garante que fique acima do chat */
   transition: all 0.2s;
   box-shadow: -4px 0 12px rgba(0, 0, 0, 0.3);
-  /* Sombra para destacar do fundo do chat */
 }
 
 .collapseButton:hover {
