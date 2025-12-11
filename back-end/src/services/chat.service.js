@@ -1025,6 +1025,89 @@ async function getMemoryStats(chatToken) {
   return stats;
 }
 
+/**
+ * Busca semântica em todos os chats de um usuário.
+ * @param {string} userId - ID do usuário
+ * @param {string} queryText - Texto da busca
+ * @param {string} apiKey - API Key para gerar embedding
+ * @returns {Promise<object[]>} - Lista de chats ranqueados por relevância
+ */
+async function searchAllUserChats(userId, queryText, apiKey) {
+  console.log(`[Service] Iniciando busca global para user ${userId}: "${queryText.substring(0, 30)}..."`);
+  const startTime = Date.now();
+
+  // 1. Lista todos os chats do usuário
+  const chats = await chatStorage.getAllChats(userId);
+  if (chats.length === 0) {
+    return [];
+  }
+
+  // 2. Gera embedding da query
+  const queryVector = await geminiService.generateEmbedding(queryText, apiKey);
+
+  // 3. Busca em batches paralelos
+  const BATCH_SIZE = 50;
+  const allResults = [];
+  const chatTokens = chats.map(c => c.id);
+
+  for (let i = 0; i < chatTokens.length; i += BATCH_SIZE) {
+    const batchTokens = chatTokens.slice(i, i + BATCH_SIZE);
+    const batchResults = await lanceDBService.searchAcrossChats(
+      batchTokens,
+      ['fatos', 'conceitos', 'historico'],
+      queryVector,
+      5 // Limite por coleção
+    );
+    allResults.push(...batchResults);
+  }
+
+  // 4. Agrupa resultados por chat e calcula score médio
+  const chatScores = {};
+  const chatMatches = {};
+
+  for (const result of allResults) {
+    const token = result.chatToken;
+    if (!chatScores[token]) {
+      chatScores[token] = [];
+      chatMatches[token] = [];
+    }
+    chatScores[token].push(result.relevanceScore || 0);
+    chatMatches[token].push({
+      text: result.text?.substring(0, 100) + '...',
+      collection: result.collection,
+      score: result.relevanceScore
+    });
+  }
+
+  // 5. Cria lista ranqueada
+  const rankedChats = Object.entries(chatScores).map(([token, scores]) => {
+    const chat = chats.find(c => c.id === token);
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const maxScore = Math.max(...scores);
+
+    return {
+      chatToken: token,
+      title: chat?.title || 'Chat',
+      updatedAt: chat?.updatedAt,
+      relevanceScore: avgScore,
+      bestMatch: maxScore,
+      matchCount: scores.length,
+      topMatches: chatMatches[token]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+    };
+  });
+
+  // 6. Ordena por melhor match (não média, para evitar diluição)
+  rankedChats.sort((a, b) => b.bestMatch - a.bestMatch);
+
+  const elapsed = Date.now() - startTime;
+  console.log(`[Service] Busca global concluída em ${elapsed}ms. ${rankedChats.length} chats encontrados.`);
+
+  // 7. Retorna top 10
+  return rankedChats.slice(0, 10);
+}
+
 module.exports = {
   createChat,
   getAllChats,
@@ -1042,5 +1125,6 @@ module.exports = {
   branchChat,
   exportMemories,
   importMemories,
-  getMemoryStats
+  getMemoryStats,
+  searchAllUserChats
 };

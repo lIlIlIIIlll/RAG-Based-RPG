@@ -11,12 +11,18 @@ const dbPath = path.join(process.cwd(), config.dbPath);
 // Garante que o diretório do banco de dados exista
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
+// Cached DB connection for performance
+let cachedDb = null;
+
 /**
- * Obtém uma conexão com o banco de dados LanceDB.
+ * Obtém uma conexão com o banco de dados LanceDB (cached).
  * @returns {Promise<lancedb.Connection>}
  */
 async function getDbConnection() {
-  return await lancedb.connect(dbPath);
+  if (!cachedDb) {
+    cachedDb = await lancedb.connect(dbPath);
+  }
+  return cachedDb;
 }
 
 /**
@@ -249,6 +255,55 @@ async function deleteRecordByMessageId(chatToken, messageid) {
   return recordDeleted;
 }
 
+/**
+ * Busca vetorial em múltiplos chats em paralelo.
+ * @param {string[]} chatTokens - Lista de chat tokens
+ * @param {string[]} collections - Coleções a buscar
+ * @param {number[]} queryVector - Vetor de busca
+ * @param {number} limitPerChat - Limite de resultados por chat/coleção
+ * @returns {Promise<object[]>} - Resultados agregados
+ */
+async function searchAcrossChats(chatTokens, collections, queryVector, limitPerChat = 3) {
+  const db = await getDbConnection();
+  const existingTables = await db.tableNames();
+
+  const searchPromises = chatTokens.flatMap(token =>
+    collections.map(async col => {
+      const tableName = `${token}-${col}`;
+      if (!existingTables.includes(tableName)) return [];
+
+      try {
+        const table = await db.openTable(tableName);
+        let results;
+
+        if (col === 'historico') {
+          // Para histórico, busca mais mas retorna só os mais recentes
+          const allResults = await table.search(queryVector).limit(100).toArray();
+          // Ordena por createdAt e pega as últimas 50
+          allResults.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          results = allResults.slice(0, 50);
+        } else {
+          results = await table.search(queryVector).limit(limitPerChat).toArray();
+        }
+
+        return results.map(r => ({
+          ...r,
+          chatToken: token,
+          collection: col,
+          // _distance é retornado pelo LanceDB (menor = mais similar)
+          relevanceScore: r._distance ? (1 / (1 + r._distance)) : 0
+        }));
+      } catch (err) {
+        console.warn(`[LanceDB] Erro ao buscar em ${tableName}:`, err.message);
+        return [];
+      }
+    })
+  );
+
+  const allResults = await Promise.all(searchPromises);
+  return allResults.flat();
+}
+
 module.exports = {
   initializeCollections,
   deleteChatTables,
@@ -256,5 +311,6 @@ module.exports = {
   searchByVector,
   getAllRecordsFromCollection,
   updateRecordByMessageId,
-  deleteRecordByMessageId
+  deleteRecordByMessageId,
+  searchAcrossChats
 };

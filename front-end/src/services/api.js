@@ -112,6 +112,25 @@ export const getAllChats = async () => {
 };
 
 /**
+ * Busca semântica em todos os chats do usuário.
+ * @param {string} query - Texto da busca
+ * @param {string} apiKey - API Key para gerar embedding
+ * @returns {Promise<object[]>} - Lista de chats ranqueados por relevância
+ */
+export const searchGlobalChats = async (query, apiKey) => {
+  const CONTEXT = "API:SEARCH_GLOBAL";
+  try {
+    log(CONTEXT, `Buscando em todos os chats: "${query.substring(0, 30)}..."`);
+    const response = await apiClient.post("/chat/search-global", { query, apiKey });
+    log(CONTEXT, `SUCESSO: ${response.data.length} chats encontrados.`);
+    return response.data;
+  } catch (error) {
+    log(CONTEXT, "ERRO: Falha na busca global.", "error", error);
+    throw error;
+  }
+};
+
+/**
  * Deleta um chat permanentemente.
  */
 export const deleteChat = async (chatToken) => {

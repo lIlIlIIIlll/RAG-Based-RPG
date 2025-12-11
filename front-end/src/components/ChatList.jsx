@@ -3,7 +3,7 @@ import { MessageSquare, Trash2, Plus, Settings, ChevronLeft, ChevronRight, Edit2
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getAllChats, deleteChat, renameChat, importChat } from "../services/api";
+import { getAllChats, deleteChat, renameChat, importChat, searchGlobalChats } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import { useConfirmation } from "../context/ConfirmationContext";
 import ConfigModal from "./ConfigModal.jsx";
@@ -35,12 +35,30 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
   // Search and sort state
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("updatedAt"); // 'updatedAt', 'createdAt', 'title'
+  const [semanticResults, setSemanticResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef(null);
 
   // Filtered and sorted chats
   const filteredAndSortedChats = useMemo(() => {
+    // Se há resultados semânticos, usa eles (já ranqueados pelo backend)
+    if (semanticResults.length > 0 && searchTerm.trim().length >= 3) {
+      // Mapeia os resultados semânticos para os chats completos
+      return semanticResults.map(sr => {
+        const fullChat = chats.find(c => c.id === sr.chatToken);
+        return {
+          ...fullChat,
+          id: sr.chatToken,
+          title: sr.title || fullChat?.title || "Campanha",
+          relevanceScore: sr.bestMatch,
+          isSemanticResult: true
+        };
+      }).filter(c => c.id); // Remove undefined
+    }
+
     let result = chats;
 
-    // Filter by search term
+    // Filter by search term (local)
     if (searchTerm.trim()) {
       result = result.filter(chat =>
         (chat.title || "Campanha").toLowerCase().includes(searchTerm.toLowerCase())
@@ -54,7 +72,52 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
       }
       return new Date(b[sortBy] || b.createdAt) - new Date(a[sortBy] || a.createdAt);
     });
-  }, [chats, searchTerm, sortBy]);
+  }, [chats, searchTerm, sortBy, semanticResults]);
+
+  // Debounced semantic search
+  useEffect(() => {
+    // Limpa timeout anterior
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Se busca muito curta, limpa resultados semânticos
+    if (searchTerm.trim().length < 3) {
+      setSemanticResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    // Obtém API key do chat ativo (se houver)
+    const activeChat = chats.find(c => c.id === activeChatToken);
+    const apiKey = activeChat?.config?.apiKey;
+
+    if (!apiKey) {
+      // Sem API key, usa apenas busca local
+      return;
+    }
+
+    setIsSearching(true);
+
+    // Debounce de 500ms
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await searchGlobalChats(searchTerm, apiKey);
+        setSemanticResults(results);
+      } catch (error) {
+        console.error("Erro na busca semântica:", error);
+        // Silently fail - just use local search
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm, activeChatToken, chats]);
 
   // Busca a lista de chats ao carregar
   const fetchChats = async () => {
@@ -353,6 +416,7 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className={styles.searchInput}
               />
+              {isSearching && <span className={styles.searchSpinner}>⏳</span>}
             </div>
             <select
               value={sortBy}

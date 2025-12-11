@@ -20,6 +20,10 @@ router.post("/create", chatController.createChat);
 // POST /api/chat/import
 router.post("/import", chatController.importChat);
 
+// Busca global em todos os chats do usuário (RAG)
+// POST /api/chat/search-global
+router.post("/search-global", chatController.searchGlobal);
+
 // Obter histórico completo de mensagens
 // GET /api/chat/:chatToken/history
 router.get("/:chatToken/history", chatController.getChatHistory);

@@ -161,6 +161,23 @@
   color: var(--text-muted);
 }
 
+.searchSpinner {
+  font-size: 12px;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
 .sortSelect {
   width: 100%;
   background: rgba(0, 0, 0, 0.3);

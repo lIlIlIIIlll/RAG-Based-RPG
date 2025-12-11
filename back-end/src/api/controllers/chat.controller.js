@@ -371,6 +371,26 @@ async function importMemories(req, res, next) {
   }
 }
 
+// [POST] /api/chat/search-global
+async function searchGlobal(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    const { query, apiKey } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: "O campo 'query' é obrigatório." });
+    }
+    if (!apiKey) {
+      return res.status(400).json({ error: "API Key é necessária para busca semântica." });
+    }
+
+    const results = await chatService.searchAllUserChats(userId, query, apiKey);
+    res.status(200).json(results);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getAllChats,
   getChatDetails,
@@ -389,5 +409,6 @@ module.exports = {
   branchChat,
   getMemoryStats,
   exportMemories,
-  importMemories
+  importMemories,
+  searchGlobal
 };
