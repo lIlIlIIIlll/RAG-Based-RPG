@@ -2,7 +2,7 @@
 import axios from "axios";
 import log from "./logger";
 
-const API_BASE_URL = "http://localhost:3001/api";
+const API_BASE_URL = "https://n8n-dungeon-master-69-api.r954jc.easypanel.host/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -351,7 +351,7 @@ export const importMemories = async (chatToken, data, collections, onProgress) =
 
     // Usa fetch nativo para SSE
     const token = localStorage.getItem("token");
-    const response = await fetch(`http://localhost:3001/api/chat/${chatToken}/memories/import`, {
+    const response = await fetch(`${API_BASE_URL}/chat/${chatToken}/memories/import`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
