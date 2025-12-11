@@ -189,6 +189,25 @@
   background-color: rgba(255, 255, 255, 0.05);
 }
 
+.searchSpinner {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent-primary);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: translateY(-50%) rotate(0deg);
+  }
+
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
 /* Content List */
 .content {
   flex: 1;

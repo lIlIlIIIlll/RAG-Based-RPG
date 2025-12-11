@@ -3,9 +3,9 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Search, Plus, Edit2, Save, X, Trash2,
   Database, Brain, History, ChevronRight, ChevronLeft,
-  Download, Upload, FileJson, CheckCircle, AlertCircle
+  Download, Upload, FileJson, CheckCircle, AlertCircle, Loader
 } from "lucide-react";
-import { addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories } from "../services/api";
+import { addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories, searchMemory } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import { useConfirmation } from "../context/ConfirmationContext";
 import styles from "./MemoryPanel.module.css";
@@ -16,6 +16,9 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
   const [localVectorMemory, setLocalVectorMemory] = useState(vectorMemory || []);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null); // null = show vectorMemory, [] or [...] = show search results
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef(null);
 
   // Estado do Modal de Adição
   const [showAddModal, setShowAddModal] = useState(false);
@@ -62,6 +65,38 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
   const handleSearch = (e) => {
     const query = e ? e.target.value : searchQuery;
     setSearchQuery(query);
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // If query is empty, show vectorMemory
+    if (!query.trim()) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+
+    // Debounce search API call
+    setIsSearching(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await searchMemory(chatToken, activeTab, query);
+        // Add category to results for grouping
+        const categorizedResults = results.map(item => ({
+          ...item,
+          category: activeTab
+        }));
+        setSearchResults(categorizedResults);
+      } catch (err) {
+        console.error("Search failed:", err);
+        addToast({ type: "error", message: "Erro na busca." });
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300); // 300ms debounce
   };
 
   const handleAddMemory = async () => {
@@ -237,11 +272,13 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
     }
   };
 
-  const listToRender = localVectorMemory.filter(item => {
-    const matchesTab = item.category === activeTab;
-    const matchesSearch = searchQuery.trim() === "" || item.text.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesTab && matchesSearch;
-  });
+  // Use search results if available, otherwise filter local memory
+  const listToRender = searchResults !== null
+    ? searchResults
+    : localVectorMemory.filter(item => {
+      const matchesTab = item.category === activeTab;
+      return matchesTab;
+    });
 
   return (
     <div className={`${styles.memoryPanelContainer} ${collapsed ? styles.collapsed : ""}`}>
@@ -329,10 +366,15 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
             onChange={handleSearch}
             placeholder={`Buscar em ${activeTab}...`}
           />
+          {isSearching && <Loader size={14} className={styles.searchSpinner} />}
         </div>
 
         <div className={styles.content}>
-          {listToRender.length === 0 ? (
+          {isSearching ? (
+            <div className={styles.emptyMessage}>
+              Buscando...
+            </div>
+          ) : listToRender.length === 0 ? (
             <div className={styles.emptyMessage}>
               {searchQuery
                 ? "Nenhum resultado encontrado."
