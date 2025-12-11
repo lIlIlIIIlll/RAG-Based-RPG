@@ -48,6 +48,34 @@ const ChatWindow = ({
     const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
     const tokenEstimate = Math.ceil(inputText.length / 4);
 
+    // Global keyboard shortcuts
+    useEffect(() => {
+        const handleGlobalKeyDown = (e) => {
+            // Ctrl+R - Regenerate last response
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                if (!isLoading && onRegenerate) {
+                    onRegenerate();
+                }
+            }
+
+            // Arrow Up on empty input - Edit last message
+            if (e.key === 'ArrowUp' &&
+                document.activeElement === textareaRef.current &&
+                inputText === '' &&
+                messages.length > 0) {
+                e.preventDefault();
+                const lastMsg = messages[messages.length - 1];
+                if (lastMsg?.messageid && onEditMessage) {
+                    onEditMessage(lastMsg.messageid, lastMsg.text);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [isLoading, onRegenerate, inputText, messages, onEditMessage]);
+
     // Ajusta altura do textarea automaticamente
     const handleInput = (e) => {
         const target = e.target;

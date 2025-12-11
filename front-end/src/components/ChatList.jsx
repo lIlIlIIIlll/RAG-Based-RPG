@@ -135,6 +135,18 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
     setShowConfig(true);
   };
 
+  // Ctrl+K keyboard shortcut to open config
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        handleOpenConfig();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeChatToken]);
+
   const handleLogout = async () => {
     if (await confirm("Tem certeza que deseja sair?", "Sair")) {
       setIsLoggingOut(true);
