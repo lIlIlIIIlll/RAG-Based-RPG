@@ -111,8 +111,9 @@ function convertToolsToAnthropic(geminiTools) {
 
 /**
  * Converte histórico do formato Gemini para o formato Anthropic.
- * Tool calls do Gemini são convertidas em texto narrativo para garantir
- * compatibilidade cross-provider (evita erros de tool_use_id não correspondente).
+ * Tool calls do Claude (com toolUseId) são mantidos no formato nativo.
+ * Tool calls antigos do Gemini (sem toolUseId) são convertidos em texto narrativo
+ * para compatibilidade cross-provider.
  * @param {Array} geminiHistory - Histórico no formato Gemini.
  * @returns {Array} Histórico no formato Anthropic.
  */
@@ -140,23 +141,61 @@ function convertHistoryToAnthropic(geminiHistory) {
                         }
                     });
                 } else if (part.functionCall) {
-                    // Tool call do Gemini - converte em texto narrativo
-                    // Isso garante compatibilidade quando o usuário troca de provider mid-conversation
-                    const toolName = part.functionCall.name;
-                    const toolArgs = JSON.stringify(part.functionCall.args || {}, null, 2);
-                    content.push({
-                        type: "text",
-                        text: `[Ação do Sistema: Executando ferramenta "${toolName}" com parâmetros: ${toolArgs}]`
-                    });
+                    // Verifica se tem toolUseId (veio do Claude) ou não (veio do Gemini)
+                    if (part.toolUseId) {
+                        // Tool call do Claude - mantém formato nativo
+                        content.push({
+                            type: "tool_use",
+                            id: part.toolUseId,
+                            name: part.functionCall.name,
+                            input: part.functionCall.args || {}
+                        });
+                    } else {
+                        // Tool call do Gemini - converte em texto narrativo
+                        // Isso garante compatibilidade quando o usuário troca de provider mid-conversation
+                        const toolName = part.functionCall.name;
+                        const toolArgs = JSON.stringify(part.functionCall.args || {}, null, 2);
+                        content.push({
+                            type: "text",
+                            text: `[Sistema executou ferramenta "${toolName}"]`
+                        });
+                    }
                 } else if (part.functionResponse) {
-                    // Resposta de tool do Gemini - converte em texto narrativo
-                    // Não usa tool_result pois não há tool_use_id correspondente do Claude
+                    // Verifica se a mensagem anterior do assistant tem o toolUseId correspondente
+                    // Se tiver, usa tool_result nativo; se não, converte para narrativa
                     const toolName = part.functionResponse.name;
-                    const toolResult = JSON.stringify(part.functionResponse.response || {});
-                    content.push({
-                        type: "text",
-                        text: `[Resultado da ferramenta "${toolName}": ${toolResult}]`
-                    });
+
+                    // Procura o toolUseId correspondente nas mensagens anteriores
+                    let matchingToolUseId = null;
+                    for (let i = anthropicMessages.length - 1; i >= 0; i--) {
+                        const prevMsg = anthropicMessages[i];
+                        if (prevMsg.role === "assistant") {
+                            const toolUse = prevMsg.content.find(c =>
+                                c.type === "tool_use" && c.name === toolName
+                            );
+                            if (toolUse) {
+                                matchingToolUseId = toolUse.id;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (matchingToolUseId) {
+                        // Resposta para tool do Claude - usa formato nativo
+                        content.push({
+                            type: "tool_result",
+                            tool_use_id: matchingToolUseId,
+                            content: JSON.stringify(part.functionResponse.response || {})
+                        });
+                    } else {
+                        // Resposta para tool do Gemini - converte para narrativa
+                        const toolResult = part.functionResponse.response;
+                        const statusMsg = toolResult?.status === "success" ? "✓" : "";
+                        content.push({
+                            type: "text",
+                            text: `[Resultado: ${statusMsg} ${toolResult?.message || JSON.stringify(toolResult)}]`
+                        });
+                    }
                 }
             }
         }
