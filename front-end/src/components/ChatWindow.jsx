@@ -244,7 +244,7 @@ const ChatWindow = ({
                 </button>
             )}
 
-            <div className={styles.messageList} style={{ display: 'block', overflow: 'hidden', padding: 0 }}>
+            <div className={styles.messageList} style={{ display: 'block', overflowY: 'auto', overflowX: 'visible', padding: 0 }}>
                 {messages.length === 0 ? (
                     <div className={styles.emptyState} style={{ height: '100%' }}>
                         <h2>O que vamos jogar hoje?</h2>
@@ -257,7 +257,7 @@ const ChatWindow = ({
                         initialTopMostItemIndex={messages.length - 1}
                         followOutput="smooth"
                         itemContent={(index, msg) => (
-                            <div style={{ padding: "0 40px 24px 60px" }}>
+                            <div style={{ padding: "0 90px 24px 60px" }}>
                                 <Message
                                     key={msg.messageid || index}
                                     msg={msg}
