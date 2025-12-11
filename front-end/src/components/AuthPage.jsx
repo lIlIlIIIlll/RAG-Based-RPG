@@ -114,7 +114,7 @@ const AuthPage = () => {
                         <Terminal size={48} className={styles.logoIcon} />
                         <div className={styles.logoGlow} />
                     </div>
-                    <h1 className={styles.brandTitle}>Dungeon Master 69</h1>
+                    <h1 className={styles.brandTitle}>Dungeon Master</h1>
                     <p className={styles.brandSubtitle}>
                         Experimente o próximo nível de RPG com IA.
                         <br />

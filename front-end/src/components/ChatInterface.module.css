@@ -4,7 +4,7 @@
     display: flex;
     width: 100%;
     height: 100vh;
-    background-color: var(--bg-deep);
+    background: linear-gradient(180deg, rgba(10, 8, 14, 0.98) 0%, rgba(5, 4, 8, 0.99) 100%);
     color: var(--text-primary);
     overflow: hidden;
     position: relative;
@@ -18,8 +18,8 @@
     left: -50%;
     width: 200%;
     height: 200%;
-    background: radial-gradient(circle at center, rgba(20, 20, 20, 1) 0%, rgba(0, 0, 0, 1) 50%);
-    opacity: 0.6;
+    background: radial-gradient(circle at center, rgba(212, 160, 23, 0.03) 0%, rgba(0, 0, 0, 0) 50%);
+    opacity: 0.8;
     z-index: 0;
     pointer-events: none;
 }
@@ -33,7 +33,6 @@
     z-index: 1;
     background: transparent;
     backdrop-filter: blur(20px);
-    /* Glass effect base */
 }
 
 /* Tela de Boas-vindas */
@@ -67,7 +66,7 @@
     color: var(--accent-primary);
     margin-bottom: 32px;
     opacity: 0.9;
-    filter: drop-shadow(0 0 15px var(--accent-glow));
+    filter: drop-shadow(0 0 20px rgba(212, 160, 23, 0.4));
     animation: float 6s ease-in-out infinite;
 }
 
@@ -83,15 +82,31 @@
     }
 }
 
+.welcomeScreen h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--accent-primary) 0%, #f4d03f 50%, var(--accent-primary) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.welcomeScreen p {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    max-width: 400px;
+}
+
 .ctaButton {
     display: flex;
     align-items: center;
     gap: 12px;
     margin-top: 32px;
     padding: 16px 32px;
-    background: rgba(255, 215, 0, 0.1);
+    background: linear-gradient(135deg, rgba(212, 160, 23, 0.15) 0%, rgba(212, 160, 23, 0.05) 100%);
     color: var(--accent-primary);
-    border: 1px solid var(--accent-primary);
+    border: 1px solid rgba(212, 160, 23, 0.4);
     border-radius: 12px;
     font-size: 16px;
     font-weight: 600;
@@ -99,12 +114,13 @@
     transition: all 0.3s var(--ease-out-expo);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 25px rgba(212, 160, 23, 0.1);
 }
 
 .ctaButton:hover {
-    background: var(--accent-primary);
+    background: linear-gradient(135deg, var(--accent-primary) 0%, #e8b92f 100%);
     color: #000;
-    box-shadow: 0 0 30px var(--accent-glow);
+    box-shadow: 0 0 40px rgba(212, 160, 23, 0.4);
     transform: scale(1.05);
+    border-color: var(--accent-primary);
 }

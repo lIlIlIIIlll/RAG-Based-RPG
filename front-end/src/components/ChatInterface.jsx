@@ -64,7 +64,7 @@ function ChatInterface() {
                         <div className={styles.welcomeIcon}>
                             <Terminal size={64} strokeWidth={1} />
                         </div>
-                        <h1>Dungeon Master 69</h1>
+                        <h1>Dungeon Master</h1>
                         <p>
                             Selecione uma campanha existente ou inicie uma nova.
                         </p>
