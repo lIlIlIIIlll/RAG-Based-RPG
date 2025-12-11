@@ -647,13 +647,41 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     loopCount++;
   }
 
-  // Se o loop terminou por limite mas a última resposta tem texto, usa ele
-  if (!finalModelResponseText && currentResponse && currentResponse.text) {
+  // Helper para verificar se o texto é conteúdo real (não placeholder)
+  const isValidContent = (text) => {
+    if (!text) return false;
+    const trimmed = text.trim();
+    // Rejeita respostas vazias ou que são apenas "..." ou pontuação
+    if (trimmed.length < 5) return false;
+    if (/^[.\s]+$/.test(trimmed)) return false; // Apenas pontos e espaços
+    if (trimmed === "...") return false;
+    return true;
+  };
+
+  // Se o loop terminou por limite mas a última resposta tem texto válido, usa ele
+  if (!isValidContent(finalModelResponseText) && currentResponse && isValidContent(currentResponse.text)) {
     finalModelResponseText = currentResponse.text;
   }
 
+  // Se ainda não temos conteúdo válido, tenta mais uma vez sem tools (para forçar resposta de texto)
+  if (!isValidContent(finalModelResponseText) && isAnthropicProvider) {
+    console.log("[Service] Resposta final vazia ou placeholder, tentando forçar resposta de texto...");
+    try {
+      const finalAttempt = await generateResponse(conversationHistory, finalSystemInstruction, {
+        ...generationOptions,
+        tools: [] // Remove tools para forçar resposta de texto
+      });
+      if (isValidContent(finalAttempt.text)) {
+        finalModelResponseText = finalAttempt.text;
+        currentResponse = finalAttempt;
+      }
+    } catch (err) {
+      console.warn("[Service] Erro na tentativa final:", err.message);
+    }
+  }
+
   // Salva resposta final
-  const modelResponse = finalModelResponseText || "Desculpe, não consegui processar sua solicitação.";
+  const modelResponse = isValidContent(finalModelResponseText) ? finalModelResponseText : "Desculpe, não consegui processar sua solicitação.";
 
   // Tenta extrair thoughtSignature da resposta final
   let finalThoughtSignature = null;
