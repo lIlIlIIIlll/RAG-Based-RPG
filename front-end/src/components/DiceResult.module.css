@@ -25,10 +25,20 @@
 }
 
 .total {
-    color: var(--accent-primary);
+    color: #ffffff;
     font-size: 1.2rem;
     font-weight: 700;
+    transition: all 0.3s ease;
+}
+
+.total.critSuccess {
+    color: var(--accent-primary);
     text-shadow: 0 0 10px rgba(212, 160, 23, 0.5);
+}
+
+.total.critFail {
+    color: #ff4444;
+    text-shadow: 0 0 10px rgba(255, 68, 68, 0.4);
 }
 
 .diceRow {
@@ -50,7 +60,7 @@
 .dieValue {
     font-weight: 600;
     font-size: 0.85rem;
-    color: var(--text-primary);
+    color: #ffffff;
     z-index: 2;
 }
 
@@ -105,11 +115,7 @@
     width: 36px;
     height: 36px;
     clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-    background: linear-gradient(135deg, #3a2a1a 0%, #1a0a00 100%);
-}
-
-.d20 .dieValue {
-    color: var(--accent-primary);
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
 }
 
 /* D100 - Pentagon like D10 */
