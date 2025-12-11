@@ -4,8 +4,8 @@
     gap: 0.5rem;
     padding: 0.75rem;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid rgba(212, 160, 23, 0.2);
+    border-radius: 10px;
     font-family: var(--font-mono);
     min-width: 200px;
 }
@@ -14,7 +14,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 1px solid rgba(212, 160, 23, 0.15);
     padding-bottom: 0.5rem;
     margin-bottom: 0.25rem;
 }
@@ -28,7 +28,7 @@
     color: var(--accent-primary);
     font-size: 1.2rem;
     font-weight: 700;
-    text-shadow: 0 0 10px var(--accent-glow);
+    text-shadow: 0 0 10px rgba(212, 160, 23, 0.5);
 }
 
 .diceRow {
@@ -38,49 +38,135 @@
     align-items: center;
 }
 
+/* Base die styles */
 .die {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: var(--bg-surface);
-    border: 1px solid var(--accent-dim);
-    border-radius: 6px;
-    color: var(--text-primary);
-    font-weight: 600;
-    font-size: 0.9rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     position: relative;
-    overflow: hidden;
+    transition: all 0.2s ease;
 }
 
-.die.critSuccess {
-    border-color: var(--accent-primary);
-    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.2));
-    box-shadow: 0 0 8px var(--accent-glow);
+.dieValue {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    z-index: 2;
+}
+
+/* D4 - Triangle */
+.d4 {
+    width: 32px;
+    height: 28px;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+}
+
+.d4 .dieValue {
+    margin-top: 8px;
+    font-size: 0.75rem;
+}
+
+/* D6 - Square (default) */
+.d6 {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    border: 1px solid rgba(212, 160, 23, 0.3);
+}
+
+/* D8 - Diamond */
+.d8 {
+    width: 32px;
+    height: 32px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+}
+
+/* D10 - Pentagon */
+.d10 {
+    width: 34px;
+    height: 36px;
+    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+    background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+}
+
+/* D12 - Hexagon */
+.d12 {
+    width: 36px;
+    height: 32px;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+}
+
+/* D20 - Icosahedron (hexagon) */
+.d20 {
+    width: 36px;
+    height: 36px;
+    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+    background: linear-gradient(135deg, #3a2a1a 0%, #1a0a00 100%);
+}
+
+.d20 .dieValue {
     color: var(--accent-primary);
 }
 
-.die.critFail {
-    border-color: #ff4444;
-    color: #ff4444;
-    background: rgba(255, 68, 68, 0.1);
+/* D100 - Pentagon like D10 */
+.d100 {
+    width: 38px;
+    height: 40px;
+    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+    background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
 }
 
-.dieFudge {
-    font-size: 1.2rem;
+.d100 .dieValue {
+    font-size: 0.7rem;
+}
+
+/* Fudge Dice */
+.dF {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    border: 1px solid rgba(212, 160, 23, 0.3);
+}
+
+/* Critical states */
+.critSuccess {
+    background: linear-gradient(135deg, rgba(212, 160, 23, 0.3) 0%, rgba(212, 160, 23, 0.15) 100%) !important;
+    box-shadow: 0 0 12px rgba(212, 160, 23, 0.5);
+}
+
+.critSuccess .dieValue {
+    color: var(--accent-primary);
+    text-shadow: 0 0 8px rgba(212, 160, 23, 0.6);
+}
+
+.critFail {
+    background: linear-gradient(135deg, rgba(255, 68, 68, 0.2) 0%, rgba(255, 68, 68, 0.1) 100%) !important;
+    box-shadow: 0 0 8px rgba(255, 68, 68, 0.3);
+}
+
+.critFail .dieValue {
+    color: #ff6666;
+}
+
+/* Fudge states */
+.dieFudge .dieValue {
+    font-size: 1.1rem;
     font-weight: 700;
 }
 
-.dieFudge.plus {
+.plus .dieValue {
     color: #4ade80;
 }
 
-.dieFudge.minus {
+.minus .dieValue {
     color: #f87171;
 }
 
-.dieFudge.blank {
+.blank .dieValue {
     color: var(--text-muted);
 }
