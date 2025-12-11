@@ -81,10 +81,17 @@
 @keyframes textReveal {
   0% {
     background-position: -100% 0;
+    opacity: 1;
+  }
+
+  70% {
+    background-position: 200% 0;
+    opacity: 0.8;
   }
 
   100% {
     background-position: 200% 0;
+    opacity: 0;
   }
 }
 
@@ -110,12 +117,13 @@
   bottom: 0;
   background: linear-gradient(90deg,
       transparent 0%,
-      rgba(255, 215, 0, 0.1) 50%,
+      rgba(255, 215, 0, 0.15) 50%,
       transparent 100%);
   background-size: 200% 100%;
-  animation: textReveal 1.5s ease-out;
+  animation: textReveal 1.2s ease-out forwards;
   pointer-events: none;
   border-radius: inherit;
+  opacity: 1;
 }
 
 /* Checkbox for Selection Mode */
