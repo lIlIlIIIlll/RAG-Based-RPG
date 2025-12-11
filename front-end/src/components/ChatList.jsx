@@ -313,24 +313,25 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
         </button>
 
         <div className={styles.header}>
-          <button
-            className={styles.newChatBtn}
-            onClick={onNewChat}
-            disabled={isCreating}
-          >
-            <Plus size={20} />
-            {!collapsed && <span>{isCreating ? "Criando..." : "Nova Campanha"}</span>}
-          </button>
-
-          <button
-            className={styles.newChatBtn}
-            onClick={handleImportClick}
-            title="Importar Campanha"
-            style={{ marginTop: '8px', backgroundColor: '#2a2a2a', border: '1px solid #444' }}
-          >
-            <Upload size={20} />
-            {!collapsed && <span>Importar</span>}
-          </button>
+          <div className={styles.actionRow}>
+            <button
+              className={styles.newChatBtn}
+              onClick={onNewChat}
+              disabled={isCreating}
+            >
+              <Plus size={18} />
+              {!collapsed && <span>{isCreating ? "Criando..." : "Nova Campanha"}</span>}
+            </button>
+            {!collapsed && (
+              <button
+                className={styles.importBtn}
+                onClick={handleImportClick}
+                title="Importar Campanha"
+              >
+                <Upload size={18} />
+              </button>
+            )}
+          </div>
           <input
             type="file"
             ref={fileInputRef}
