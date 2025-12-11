@@ -257,7 +257,7 @@ const ChatWindow = ({
                         initialTopMostItemIndex={messages.length - 1}
                         followOutput="smooth"
                         itemContent={(index, msg) => (
-                            <div style={{ padding: "0 90px 24px 60px" }}>
+                            <div style={{ padding: "0 100px 24px 60px" }}>
                                 <Message
                                     key={msg.messageid || index}
                                     msg={msg}
