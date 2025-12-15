@@ -46,7 +46,57 @@ const ConfigModal = ({ chatToken, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [allModels, setAllModels] = useState([]);
+  const [filteredModels, setFilteredModels] = useState([]);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
   const { addToast } = useToast();
+
+  // Carrega todos os modelos do OpenRouter
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/models');
+        if (response.ok) {
+          const data = await response.json();
+          // Ordena por nome e extrai id/name
+          const models = (data.data || [])
+            .map(m => ({ id: m.id, name: m.name, context: m.context_length }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setAllModels(models);
+          setFilteredModels(models.slice(0, 20)); // Mostra top 20 inicialmente
+          console.log(`[Models] Loaded ${models.length} models from OpenRouter`);
+        }
+      } catch (error) {
+        console.warn('[Models] Failed to fetch models:', error);
+        // Fallback para modelos populares
+        setAllModels(POPULAR_MODELS);
+        setFilteredModels(POPULAR_MODELS);
+      }
+    };
+    fetchModels();
+  }, []);
+
+  // Filtra modelos baseado no input
+  const handleModelSearch = (searchTerm) => {
+    setConfig({ ...config, modelName: searchTerm });
+    setShowModelDropdown(true);
+
+    if (!searchTerm.trim()) {
+      setFilteredModels(allModels.slice(0, 20));
+      return;
+    }
+
+    const term = searchTerm.toLowerCase();
+    const matches = allModels
+      .filter(m => m.id.toLowerCase().includes(term) || m.name.toLowerCase().includes(term))
+      .slice(0, 30);
+    setFilteredModels(matches);
+  };
+
+  const selectModel = (modelId) => {
+    setConfig({ ...config, modelName: modelId });
+    setShowModelDropdown(false);
+  };
 
   // Verifica se há código OAuth na URL (callback)
   const handleOAuthCallback = useCallback(async () => {
@@ -206,24 +256,34 @@ const ConfigModal = ({ chatToken, onClose }) => {
 
           {/* Seleção do Modelo */}
           <div className={styles.field}>
-            <label>Modelo</label>
-            <input
-              type="text"
-              value={config.modelName}
-              onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
-              placeholder="ex: google/gemini-2.5-pro-preview"
-              list="model-suggestions"
-            />
-            <datalist id="model-suggestions">
-              {POPULAR_MODELS.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name}
-                </option>
-              ))}
-            </datalist>
+            <label>Modelo ({filteredModels.length} disponíveis)</label>
+            <div className={styles.modelSearchContainer}>
+              <input
+                type="text"
+                value={config.modelName}
+                onChange={(e) => handleModelSearch(e.target.value)}
+                onFocus={() => setShowModelDropdown(true)}
+                onBlur={() => setTimeout(() => setShowModelDropdown(false), 200)}
+                placeholder="Digite para buscar modelos..."
+                autoComplete="off"
+              />
+              {showModelDropdown && filteredModels.length > 0 && (
+                <div className={styles.modelDropdown}>
+                  {filteredModels.map((model) => (
+                    <div
+                      key={model.id}
+                      className={styles.modelOption}
+                      onMouseDown={() => selectModel(model.id)}
+                    >
+                      <span className={styles.modelId}>{model.id}</span>
+                      <span className={styles.modelName}>{model.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <span className={styles.hint}>
-              Digite o identificador do modelo ou selecione da lista.
-              <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer"> Ver todos os modelos</a>
+              Digite para buscar entre {allModels.length} modelos disponíveis.
             </span>
           </div>
 

@@ -380,3 +380,52 @@
 .hint a:hover {
   text-decoration: underline;
 }
+
+/* Model Search Autocomplete */
+.modelSearchContainer {
+  position: relative;
+}
+
+.modelDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 250px;
+  overflow-y: auto;
+  background: rgba(20, 20, 20, 0.98);
+  border: 1px solid var(--border-subtle);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  z-index: 100;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.modelOption {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.15s;
+}
+
+.modelOption:hover {
+  background: rgba(255, 215, 0, 0.1);
+}
+
+.modelOption:last-child {
+  border-bottom: none;
+}
+
+.modelId {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent-primary);
+}
+
+.modelName {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
