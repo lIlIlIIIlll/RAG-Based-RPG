@@ -1,38 +1,91 @@
 // src/components/ConfigModal/ConfigModal.jsx
-import React, { useState, useEffect } from "react";
-import { X, Save } from "lucide-react";
-import { apiClient, updateChatConfig } from "../services/api"; // Importando helper ou apiClient
+import React, { useState, useEffect, useCallback } from "react";
+import { X, Save, ExternalLink, Check, AlertCircle } from "lucide-react";
+import { apiClient, updateChatConfig } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import styles from "./ConfigModal.module.css";
 
-// Modelos disponíveis por provedor
-const MODELS = {
-  gemini: [
-    { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
-    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
-    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
-    { id: "gemini-2.0-flash-thinking-exp", name: "Gemini 2.0 Flash Thinking" },
-  ],
-  anthropic: [
-    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" },
-    { id: "claude-opus-4-20250514", name: "Claude Opus 4" },
-    { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
-    { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku" },
-  ]
-};
+// Modelos populares do OpenRouter
+const POPULAR_MODELS = [
+  { id: "google/gemini-2.5-pro-preview", name: "Gemini 2.5 Pro" },
+  { id: "google/gemini-2.5-flash-preview", name: "Gemini 2.5 Flash" },
+  { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4" },
+  { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
+  { id: "openai/gpt-4o", name: "GPT-4o" },
+  { id: "meta-llama/llama-4-maverick", name: "Llama 4 Maverick" },
+];
+
+// Gera code_verifier e code_challenge para OAuth PKCE
+async function generatePKCE() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  const codeVerifier = btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+
+  return { codeVerifier, codeChallenge };
+}
 
 const ConfigModal = ({ chatToken, onClose }) => {
   const [config, setConfig] = useState({
-    llmProvider: "gemini",
-    modelName: "gemini-2.5-pro",
+    modelName: "google/gemini-2.5-pro-preview",
     temperature: 0.7,
     systemInstruction: "",
-    apiKey: "",
-    anthropicApiKey: "",
+    geminiApiKey: "",
+    openrouterApiKey: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const { addToast } = useToast();
+
+  // Verifica se há código OAuth na URL (callback)
+  const handleOAuthCallback = useCallback(async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const storedVerifier = localStorage.getItem('openrouter_code_verifier');
+
+    if (code && storedVerifier) {
+      setIsConnecting(true);
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/auth/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            code_verifier: storedVerifier,
+            code_challenge_method: 'S256',
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Falha ao obter API Key do OpenRouter');
+        }
+
+        const data = await response.json();
+        if (data.key) {
+          setConfig(prev => ({ ...prev, openrouterApiKey: data.key }));
+          addToast({ type: "success", message: "Conectado ao OpenRouter com sucesso!" });
+        }
+      } catch (error) {
+        addToast({ type: "error", message: "Erro ao conectar com OpenRouter: " + error.message });
+      } finally {
+        localStorage.removeItem('openrouter_code_verifier');
+        // Limpa a URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setIsConnecting(false);
+      }
+    }
+  }, [addToast]);
 
   // Carrega configurações atuais
   useEffect(() => {
@@ -42,12 +95,11 @@ const ConfigModal = ({ chatToken, onClose }) => {
         const currentConfig = response.data.config || {};
 
         setConfig({
-          llmProvider: currentConfig.llmProvider || "gemini",
-          modelName: currentConfig.modelName || "gemini-2.5-pro",
+          modelName: currentConfig.modelName || "google/gemini-2.5-pro-preview",
           temperature: currentConfig.temperature ?? 0.7,
           systemInstruction: currentConfig.systemInstruction || "",
-          apiKey: currentConfig.apiKey || "",
-          anthropicApiKey: currentConfig.anthropicApiKey || "",
+          geminiApiKey: currentConfig.geminiApiKey || "",
+          openrouterApiKey: currentConfig.openrouterApiKey || "",
         });
       } catch (error) {
         addToast({ type: "error", message: "Erro ao carregar configurações." });
@@ -56,18 +108,19 @@ const ConfigModal = ({ chatToken, onClose }) => {
         setLoading(false);
       }
     };
+
+    handleOAuthCallback();
     if (chatToken) loadConfig();
-  }, [chatToken, addToast, onClose]);
+  }, [chatToken, addToast, onClose, handleOAuthCallback]);
 
   // Fecha ao pressionar ESC
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
-        e.stopPropagation(); // Impede que outros listeners peguem o evento
+        e.stopPropagation();
         onClose();
       }
     };
-    // Use capture: true para garantir que pegamos o evento antes de qualquer outra coisa
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [onClose]);
@@ -78,10 +131,14 @@ const ConfigModal = ({ chatToken, onClose }) => {
     }
   };
 
-  const handleProviderChange = (newProvider) => {
-    // Ao mudar o provedor, atualiza o modelo padrão
-    const defaultModel = MODELS[newProvider]?.[0]?.id || "gemini-2.5-pro";
-    setConfig({ ...config, llmProvider: newProvider, modelName: defaultModel });
+  const handleConnectOpenRouter = async () => {
+    const { codeVerifier, codeChallenge } = await generatePKCE();
+    localStorage.setItem('openrouter_code_verifier', codeVerifier);
+
+    const callbackUrl = window.location.origin + window.location.pathname;
+    const authUrl = `https://openrouter.ai/auth?callback_url=${encodeURIComponent(callbackUrl)}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+
+    window.location.href = authUrl;
   };
 
   const handleSave = async () => {
@@ -99,7 +156,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
 
   if (loading) return null;
 
-  const availableModels = MODELS[config.llmProvider] || MODELS.gemini;
+  const isOpenRouterConnected = !!config.openrouterApiKey;
 
   return (
     <div className={styles.overlay} onClick={handleBackdropClick}>
@@ -112,91 +169,72 @@ const ConfigModal = ({ chatToken, onClose }) => {
         </div>
 
         <div className={styles.body}>
-          {/* Seleção do Provedor de LLM */}
+          {/* Status de Conexão OpenRouter */}
           <div className={styles.field}>
-            <label>Provedor de LLM (Narração)</label>
-            <div className={styles.providerToggle}>
+            <label>OpenRouter</label>
+            <div className={styles.connectionStatus}>
+              {isOpenRouterConnected ? (
+                <div className={styles.connected}>
+                  <Check size={16} />
+                  <span>Conectado</span>
+                </div>
+              ) : (
+                <div className={styles.disconnected}>
+                  <AlertCircle size={16} />
+                  <span>Não conectado</span>
+                </div>
+              )}
               <button
                 type="button"
-                className={`${styles.providerBtn} ${config.llmProvider === "gemini" ? styles.active : ""}`}
-                onClick={() => handleProviderChange("gemini")}
+                className={styles.connectBtn}
+                onClick={handleConnectOpenRouter}
+                disabled={isConnecting}
               >
-                🔮 Gemini
-              </button>
-              <button
-                type="button"
-                className={`${styles.providerBtn} ${config.llmProvider === "anthropic" ? styles.active : ""}`}
-                onClick={() => handleProviderChange("anthropic")}
-              >
-                🤖 Claude
+                <ExternalLink size={14} />
+                {isConnecting ? "Conectando..." : isOpenRouterConnected ? "Reconectar" : "Conectar com OpenRouter"}
               </button>
             </div>
             <span className={styles.hint}>
-              O Gemini será usado para embeddings e busca vetorial, independente do provedor selecionado.
+              Conecte-se ao OpenRouter para acessar centenas de modelos de IA.
             </span>
           </div>
 
           {/* Seleção do Modelo */}
           <div className={styles.field}>
-            <label>Modelo ({config.llmProvider === "gemini" ? "Gemini" : "Claude"})</label>
-            {config.llmProvider === "gemini" ? (
-              <select
-                value={config.modelName}
-                onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
-                className={styles.select}
-              >
-                {availableModels.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={config.modelName}
-                onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
-                placeholder="ex: claude-sonnet-4-20250514"
-              />
-            )}
+            <label>Modelo</label>
+            <input
+              type="text"
+              value={config.modelName}
+              onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
+              placeholder="ex: google/gemini-2.5-pro-preview"
+              list="model-suggestions"
+            />
+            <datalist id="model-suggestions">
+              {POPULAR_MODELS.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </datalist>
             <span className={styles.hint}>
-              {config.llmProvider === "gemini"
-                ? "Certifique-se de que o modelo é compatível com sua API Key."
-                : "Digite o identificador do modelo Claude (ex: claude-sonnet-4-20250514, claude-3-5-sonnet-20241022)."}
+              Digite o identificador do modelo ou selecione da lista.
+              <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer"> Ver todos os modelos</a>
             </span>
           </div>
 
-          {/* API Key do Gemini (sempre necessária para embeddings) */}
+          {/* API Key do Gemini (apenas embeddings) */}
           <div className={styles.field}>
-            <label>Gemini API Key {config.llmProvider === "anthropic" ? "(apenas embeddings)" : ""}</label>
+            <label>Gemini API Key (Embeddings)</label>
             <input
               type="password"
-              value={config.apiKey || ""}
-              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+              value={config.geminiApiKey || ""}
+              onChange={(e) => setConfig({ ...config, geminiApiKey: e.target.value })}
               placeholder="Cole sua API Key do Gemini aqui..."
             />
             <span className={styles.hint}>
-              {config.llmProvider === "anthropic"
-                ? "Necessária para busca vetorial e embeddings."
-                : "Sua chave será salva apenas para este chat."}
+              Necessária para busca semântica e memória vetorial.
             </span>
           </div>
-
-          {/* API Key do Anthropic (apenas se o provedor for anthropic) */}
-          {config.llmProvider === "anthropic" && (
-            <div className={styles.field}>
-              <label>Claude API Key (Anthropic)</label>
-              <input
-                type="password"
-                value={config.anthropicApiKey || ""}
-                onChange={(e) => setConfig({ ...config, anthropicApiKey: e.target.value })}
-                placeholder="Cole sua API Key do Anthropic aqui..."
-              />
-              <span className={styles.hint}>
-                Sua chave do Anthropic será usada apenas para geração de texto.
-              </span>
-            </div>
-          )}
 
           <div className={styles.field}>
             <label>Temperatura ({config.temperature})</label>

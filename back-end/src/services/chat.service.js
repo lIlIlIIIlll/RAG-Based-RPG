@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require("uuid");
 const lanceDBService = require("./lancedb.service");
 const chatStorage = require("./chatStorage.service");
 const geminiService = require("./gemini.service");
-const anthropicService = require("./anthropic.service");
+const openrouterService = require("./openrouter.service");
 const config = require("../config");
 
 // Função auxiliar para contar palavras
@@ -31,13 +31,11 @@ async function createChat(userId) {
     updatedAt: new Date().toISOString(),
     userId: userId, // Salva o userId nos metadados
     config: {
-      llmProvider: "gemini", // "gemini" ou "anthropic"
-      modelName: "gemini-2.5-pro",
+      modelName: "google/gemini-2.5-pro-preview",
       temperature: 1.0,
       systemInstruction: config.systemInstructionTemplate,
-      apiKey: "", // API Key do Gemini (também usado para embeddings)
-      anthropicApiKey: "", // API Key do Anthropic (opcional, usado apenas se llmProvider === "anthropic")
-      thinkingLevel: "high", // Default para Gemini 3.0
+      geminiApiKey: "", // API Key do Gemini (usado APENAS para embeddings)
+      openrouterApiKey: "", // API Key do OpenRouter (usado para LLM)
     },
   };
 
@@ -141,12 +139,12 @@ async function addMessage(chatToken, collectionName, text, role, attachments = [
 async function editMessage(chatToken, messageid, newText) {
   // Precisa regenerar embedding se tiver API Key configurada no chat
   const metadata = await chatStorage.getChatMetadata(chatToken);
-  const apiKey = metadata.config.apiKey;
+  const geminiApiKey = metadata.config.geminiApiKey;
 
   let newVector = null;
-  if (apiKey && newText && newText.trim().length > 0) {
+  if (geminiApiKey && newText && newText.trim().length > 0) {
     try {
-      newVector = await geminiService.generateEmbedding(newText, apiKey);
+      newVector = await geminiService.generateEmbedding(newText, geminiApiKey);
     } catch (e) {
       console.error("[Service] Erro ao regenerar embedding na edição:", e);
     }
@@ -195,18 +193,13 @@ async function searchMessages(chatToken, collectionName, queryText, limit = 5, a
  * Lógica principal de geração de resposta (RAG + Chat).
  */
 async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, files = []) {
-  // 1. Carrega metadados e valida API Key
+  // 1. Carrega metadados e valida API Keys
   const chatMetadata = await chatStorage.getChatMetadata(chatToken);
   if (!chatMetadata) throw new Error("Chat não encontrado.");
 
-  const { llmProvider, apiKey, anthropicApiKey, modelName, temperature, systemInstruction, thinkingLevel } = chatMetadata.config;
-  if (!apiKey) throw new Error("API Key do Gemini não configurada (necessária para embeddings).");
-
-  // Se o provedor for Anthropic, valida a API Key do Anthropic
-  const isAnthropicProvider = llmProvider === "anthropic";
-  if (isAnthropicProvider && !anthropicApiKey) {
-    throw new Error("API Key do Anthropic não configurada.");
-  }
+  const { geminiApiKey, openrouterApiKey, modelName, temperature, systemInstruction } = chatMetadata.config;
+  if (!geminiApiKey) throw new Error("API Key do Gemini não configurada (necessária para embeddings).");
+  if (!openrouterApiKey) throw new Error("API Key do OpenRouter não configurada.");
 
   // 2. Salva mensagem do usuário no histórico
   // Processa anexos se houver
@@ -216,7 +209,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     data: f.buffer.toString("base64")
   }));
 
-  await addMessage(chatToken, "historico", userMessage, "user", attachments, apiKey);
+  await addMessage(chatToken, "historico", userMessage, "user", attachments, geminiApiKey);
 
   // 3. Recupera Histórico Recente (Necessário para gerar a query de busca e para o contexto do chat)
   const historyRecords = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
@@ -238,9 +231,9 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   // Constrói contexto de texto para a IA gerar a query
   const historyContextText = recentHistory.map(r => `${r.role}: ${r.text}`).join("\n");
 
-  if (apiKey) {
+  if (geminiApiKey) {
     try {
-      searchQuery = await geminiService.generateSearchQuery(historyContextText, apiKey);
+      searchQuery = await geminiService.generateSearchQuery(historyContextText, geminiApiKey);
     } catch (e) {
       console.warn("[Service] Falha ao gerar query de busca, usando mensagem original:", e);
     }
@@ -263,7 +256,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     for (const collectionName of collectionsToSearch) {
       try {
         // Busca um número maior de candidatos para filtrar depois (100 por tabela)
-        const results = await searchMessages(chatToken, collectionName, searchQuery, 100, apiKey);
+        const results = await searchMessages(chatToken, collectionName, searchQuery, 100, geminiApiKey);
         // Adiciona a categoria ao objeto para referência futura
         const resultsWithCategory = results.map(r => ({ ...r, category: collectionName }));
         allMemories = allMemories.concat(resultsWithCategory);
@@ -418,17 +411,6 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
           }
         },
         {
-          name: "generate_image",
-          description: "Gera uma imagem baseada em uma descrição (prompt) usando IA. Use quando o usuário pedir para 'desenhar', 'criar imagem', 'mostrar como é', etc.",
-          parameters: {
-            type: "OBJECT",
-            properties: {
-              prompt: { type: "STRING", description: "Descrição detalhada da imagem a ser gerada." }
-            },
-            required: ["prompt"]
-          }
-        },
-        {
           name: "edit_memory",
           description: "Edita o texto de uma memória existente (fato ou conceito) ou mensagem do histórico. Use quando o usuário corrigir uma informação ou quando um fato mudar.",
           parameters: {
@@ -459,25 +441,17 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     }
   ];
 
-  // Inicia Chat Session via wrapper do serviço
-  // Determina qual API Key usar para geração de texto
-  const llmApiKey = isAnthropicProvider ? anthropicApiKey : apiKey;
-
+  // 8. Chama OpenRouter com Tools
   const generationOptions = {
-    modelName: isAnthropicProvider ? (modelName.startsWith("claude") ? modelName : "claude-sonnet-4-20250514") : modelName,
+    modelName,
     temperature,
     tools,
-    apiKey: llmApiKey,
-    thinkingConfig: !isAnthropicProvider && thinkingLevel ? { thinkingLevel } : undefined
+    apiKey: openrouterApiKey
   };
 
-  // Função auxiliar para chamar o provedor correto
+  // Função auxiliar para chamar OpenRouter
   const generateResponse = async (history, systemInst, options) => {
-    if (isAnthropicProvider) {
-      return await anthropicService.generateChatResponse(history, systemInst, options);
-    } else {
-      return await geminiService.generateChatResponse(history, systemInst, options);
-    }
+    return await openrouterService.generateChatResponse(history, systemInst, options);
   };
 
   let loopCount = 0;
@@ -508,7 +482,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
 
       try {
         if (name === "insert_fact") {
-          const msgId = await addMessage(chatToken, "fatos", args.text, "model", [], apiKey);
+          const msgId = await addMessage(chatToken, "fatos", args.text, "model", [], geminiApiKey);
           toolResult = { status: "success", message: "Fato inserido com sucesso." };
 
           // Adiciona à memória de exibição para atualização imediata na UI
@@ -520,7 +494,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
           });
 
         } else if (name === "insert_concept") {
-          const msgId = await addMessage(chatToken, "conceitos", args.text, "model", [], apiKey);
+          const msgId = await addMessage(chatToken, "conceitos", args.text, "model", [], geminiApiKey);
           toolResult = { status: "success", message: "Conceito inserido com sucesso." };
 
           // Adiciona à memória de exibição para atualização imediata na UI
@@ -559,7 +533,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
           const modString = modifier ? (modifier > 0 ? `+${modifier}` : `${modifier}`) : '';
           const resultText = `${count}d${type}${modString} = ${finalTotal} { ${rollString} }`;
 
-          const rollMsgId = await addMessage(chatToken, "historico", resultText, "model", [], apiKey);
+          const rollMsgId = await addMessage(chatToken, "historico", resultText, "model", [], geminiApiKey);
 
           generatedMessages.push({
             text: resultText,
@@ -569,24 +543,6 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
           });
 
           toolResult = { result: resultText };
-        } else if (name === "generate_image") {
-          const base64Image = await geminiService.generateImage(args.prompt, apiKey);
-          const attachments = [{
-            mimeType: "image/png",
-            data: base64Image
-          }];
-
-          const imgMsgId = await addMessage(chatToken, "historico", `Imagem gerada: ${args.prompt}`, "model", attachments, apiKey);
-
-          generatedMessages.push({
-            text: `Imagem gerada: ${args.prompt}`,
-            role: "model",
-            messageid: imgMsgId,
-            createdAt: Date.now(),
-            attachments: JSON.stringify(attachments)
-          });
-
-          toolResult = { status: "success", message: "Imagem gerada e enviada ao usuário." };
         } else if (name === "edit_memory") {
           const wasUpdated = await editMessage(chatToken, args.messageid, args.new_text);
           if (wasUpdated) {
@@ -693,7 +649,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     }
   }
 
-  const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model", [], apiKey, finalThoughtSignature);
+  const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model", [], geminiApiKey, finalThoughtSignature);
 
   generatedMessages.push({
     text: modelResponse,
