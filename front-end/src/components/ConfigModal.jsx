@@ -134,9 +134,14 @@ const ConfigModal = ({ chatToken, onClose }) => {
   const handleConnectOpenRouter = async () => {
     const { codeVerifier, codeChallenge } = await generatePKCE();
     localStorage.setItem('openrouter_code_verifier', codeVerifier);
+    localStorage.setItem('openrouter_pending_chat', chatToken); // Salva o chat token para callback
 
     const callbackUrl = window.location.origin + window.location.pathname;
+    console.log('[OAuth] Callback URL:', callbackUrl);
+    console.log('[OAuth] Code Challenge:', codeChallenge);
+
     const authUrl = `https://openrouter.ai/auth?callback_url=${encodeURIComponent(callbackUrl)}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+    console.log('[OAuth] Auth URL:', authUrl);
 
     window.location.href = authUrl;
   };

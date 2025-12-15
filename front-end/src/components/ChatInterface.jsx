@@ -4,6 +4,7 @@ import ChatList from "./ChatList.jsx";
 import ChatView from "./ChatView.jsx";
 import { createChat } from "../services/api.js";
 import { useToast } from "../context/ToastContext";
+import { useOpenRouterAuth } from "../hooks/useOpenRouterAuth.js";
 import { MessageSquarePlus, Terminal } from "lucide-react";
 import styles from "./ChatInterface.module.css";
 
@@ -13,6 +14,9 @@ function ChatInterface() {
     const [activeChatToken, setActiveChatToken] = useState(chatId || null);
     const [isCreatingChat, setIsCreatingChat] = useState(false);
     const { addToast } = useToast();
+
+    // Processa OAuth callback do OpenRouter se houver
+    useOpenRouterAuth();
 
     // Sincroniza o activeChatToken com a URL
     useEffect(() => {
