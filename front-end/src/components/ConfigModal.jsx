@@ -1,6 +1,6 @@
 // src/components/ConfigModal/ConfigModal.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Save, ExternalLink, Check, AlertCircle } from "lucide-react";
+import { X, Save, ExternalLink, Check, AlertCircle, Zap, Search } from "lucide-react";
 import { apiClient, updateChatConfig } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import styles from "./ConfigModal.module.css";
@@ -224,67 +224,77 @@ const ConfigModal = ({ chatToken, onClose }) => {
         </div>
 
         <div className={styles.body}>
-          {/* Status de Conexão OpenRouter */}
-          <div className={styles.field}>
-            <label>OpenRouter</label>
-            <div className={styles.connectionStatus}>
-              {isOpenRouterConnected ? (
-                <div className={styles.connected}>
-                  <Check size={16} />
-                  <span>Conectado</span>
+          {/* OpenRouter Card */}
+          <div className={styles.openrouterCard}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>
+                <Zap size={20} className={styles.openrouterIcon} />
+                <span>OpenRouter</span>
+              </div>
+              <div className={`${styles.connectionBadge} ${isOpenRouterConnected ? styles.badgeConnected : styles.badgeDisconnected}`}>
+                {isOpenRouterConnected ? (
+                  <>
+                    <Check size={14} />
+                    <span>Conectado</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={14} />
+                    <span>Desconectado</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.cardContent}>
+              {/* Modelo */}
+              <div className={styles.modelSection}>
+                <label>
+                  <Search size={14} />
+                  Modelo
+                </label>
+                <div className={styles.modelSearchContainer}>
+                  <input
+                    type="text"
+                    value={config.modelName}
+                    onChange={(e) => handleModelSearch(e.target.value)}
+                    onFocus={() => setShowModelDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowModelDropdown(false), 200)}
+                    placeholder="Buscar modelo..."
+                    autoComplete="off"
+                    className={styles.modelInput}
+                  />
+                  {showModelDropdown && filteredModels.length > 0 && (
+                    <div className={styles.modelDropdown}>
+                      {filteredModels.map((model) => (
+                        <div
+                          key={model.id}
+                          className={styles.modelOption}
+                          onMouseDown={() => selectModel(model.id)}
+                        >
+                          <span className={styles.modelId}>{model.id}</span>
+                          <span className={styles.modelName}>{model.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className={styles.disconnected}>
-                  <AlertCircle size={16} />
-                  <span>Não conectado</span>
-                </div>
-              )}
+                <span className={styles.modelCount}>
+                  {allModels.length} modelos disponíveis
+                </span>
+              </div>
+
+              {/* Botão de Conexão */}
               <button
                 type="button"
-                className={styles.connectBtn}
+                className={`${styles.openrouterBtn} ${isOpenRouterConnected ? styles.reconnect : ''}`}
                 onClick={handleConnectOpenRouter}
                 disabled={isConnecting}
               >
-                <ExternalLink size={14} />
-                {isConnecting ? "Conectando..." : isOpenRouterConnected ? "Reconectar" : "Conectar com OpenRouter"}
+                <ExternalLink size={16} />
+                {isConnecting ? "Conectando..." : isOpenRouterConnected ? "Reconectar" : "Conectar ao OpenRouter"}
               </button>
             </div>
-            <span className={styles.hint}>
-              Conecte-se ao OpenRouter para acessar centenas de modelos de IA.
-            </span>
-          </div>
-
-          {/* Seleção do Modelo */}
-          <div className={styles.field}>
-            <label>Modelo ({filteredModels.length} disponíveis)</label>
-            <div className={styles.modelSearchContainer}>
-              <input
-                type="text"
-                value={config.modelName}
-                onChange={(e) => handleModelSearch(e.target.value)}
-                onFocus={() => setShowModelDropdown(true)}
-                onBlur={() => setTimeout(() => setShowModelDropdown(false), 200)}
-                placeholder="Digite para buscar modelos..."
-                autoComplete="off"
-              />
-              {showModelDropdown && filteredModels.length > 0 && (
-                <div className={styles.modelDropdown}>
-                  {filteredModels.map((model) => (
-                    <div
-                      key={model.id}
-                      className={styles.modelOption}
-                      onMouseDown={() => selectModel(model.id)}
-                    >
-                      <span className={styles.modelId}>{model.id}</span>
-                      <span className={styles.modelName}>{model.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <span className={styles.hint}>
-              Digite para buscar entre {allModels.length} modelos disponíveis.
-            </span>
           </div>
 
           {/* API Key do Gemini (apenas embeddings) */}
