@@ -349,6 +349,7 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                 onClick={() => {
                   setActiveTab(c.id);
                   setSearchQuery("");
+                  setSearchResults(null);
                 }}
               >
                 {c.icon}
