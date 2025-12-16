@@ -89,6 +89,15 @@ async function generateChatResponse(req, res, next) {
     // Se houver pendências de deleção, o frontend receberá no generationResult
     res.status(200).json(generationResult);
   } catch (error) {
+    // Verifica se é um erro estruturado do OpenRouter
+    if (error.userMessage) {
+      return res.status(error.statusCode || 500).json({
+        error: error.userMessage,
+        errorType: error.errorType,
+        reasons: error.reasons,
+        details: error.message
+      });
+    }
     next(error);
   }
 }

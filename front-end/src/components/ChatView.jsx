@@ -213,9 +213,28 @@ const ChatView = ({ chatToken }) => {
         setIsConfirmationModalOpen(true);
       }
     } catch (err) {
+      // Tenta extrair mensagem de erro estruturada do backend
+      let errorMessage = "Falha ao obter resposta da IA.";
+      let errorType = "error";
+
+      if (err.response?.data) {
+        const data = err.response.data;
+        errorMessage = data.error || errorMessage;
+
+        // Ajusta tipo de toast baseado no erro
+        if (data.errorType === "moderation") {
+          errorType = "warning";
+          errorMessage = `⚠️ ${errorMessage}`;
+        } else if (data.errorType === "rate_limit") {
+          errorType = "warning";
+        } else if (data.errorType === "privacy_policy") {
+          errorType = "info";
+        }
+      }
+
       addToast({
-        type: "error",
-        message: "Falha ao obter resposta da IA.",
+        type: errorType,
+        message: errorMessage,
       });
       setMessages(prev => prev.filter(m => m.messageid !== tempId));
     } finally {

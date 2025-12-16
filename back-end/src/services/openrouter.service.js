@@ -272,7 +272,38 @@ async function generateChatResponse(
                     throw new Error(`OpenRouter API error (${response.status}): ${retryErrorData}`);
                 }
             } else {
-                throw new Error(`OpenRouter API error (${response.status}): ${errorData}`);
+                // Tenta parsear erro para extrair detalhes
+                let errorDetails = {};
+                try {
+                    errorDetails = JSON.parse(errorData);
+                } catch (e) {
+                    // Erro não é JSON
+                }
+
+                // Cria erro estruturado para o frontend
+                const error = new Error(`OpenRouter API error (${response.status}): ${errorData}`);
+                error.statusCode = response.status;
+
+                // Detecta tipos específicos de erro
+                if (response.status === 403 && errorDetails.error?.metadata?.reasons) {
+                    error.errorType = "moderation";
+                    error.reasons = errorDetails.error.metadata.reasons;
+                    error.userMessage = `Conteúdo bloqueado pela moderação: ${error.reasons.join(", ")}. Tente reformular sua mensagem ou usar outro modelo.`;
+                } else if (response.status === 429) {
+                    error.errorType = "rate_limit";
+                    error.userMessage = "Limite de requisições atingido. Aguarde alguns segundos e tente novamente.";
+                } else if (response.status === 401 || response.status === 403) {
+                    error.errorType = "auth";
+                    error.userMessage = "Erro de autenticação com o OpenRouter. Verifique sua API Key.";
+                } else if (response.status === 404 && errorData.includes("data policy")) {
+                    error.errorType = "privacy_policy";
+                    error.userMessage = "Modelo bloqueado por política de privacidade. Configure em: openrouter.ai/settings/privacy";
+                } else {
+                    error.errorType = "unknown";
+                    error.userMessage = "Erro ao gerar resposta. Tente novamente ou troque de modelo.";
+                }
+
+                throw error;
             }
         }
 
