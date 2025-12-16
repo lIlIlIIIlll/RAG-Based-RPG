@@ -471,8 +471,18 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
       break;
     }
 
+    // Se já temos texto válido E function calls, capturamos o texto
+    // (alguns modelos enviam narração + tool call na mesma resposta)
+    const hasValidTextWithTools = text && text.trim().length > 10 && !text.trim().startsWith("...");
+    if (hasValidTextWithTools && !finalModelResponseText) {
+      console.log(`[Service] Modelo retornou texto junto com tools. Capturando narração: "${text.substring(0, 50)}..."`);
+      finalModelResponseText = text;
+    }
+
     // Executa Tools
     const functionResponseParts = [];
+    let needsFollowUp = false; // Flag para indicar se precisamos de resposta adicional
+
     for (const call of functionCalls) {
       const name = call.name;
       const args = call.args;
@@ -543,6 +553,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
           });
 
           toolResult = { result: resultText };
+          needsFollowUp = true; // Rolagem de dados pode precisar de resposta narrativa
         } else if (name === "edit_memory") {
           const wasUpdated = await editMessage(chatToken, args.messageid, args.new_text);
           if (wasUpdated) {
@@ -583,6 +594,12 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
           response: toolResult
         }
       });
+    }
+
+    // Se já temos texto válido e não precisamos de follow-up, podemos sair do loop
+    if (finalModelResponseText && !needsFollowUp) {
+      console.log(`[Service] Texto já capturado, pulando requisição adicional.`);
+      break;
     }
 
     // Adiciona a chamada da função (model turn)
