@@ -334,6 +334,18 @@ const ConfigModal = ({ chatToken, onClose }) => {
             <textarea
               value={config.systemInstruction}
               onChange={(e) => setConfig({ ...config, systemInstruction: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.shiftKey) {
+                  e.preventDefault();
+                  const start = e.target.selectionStart;
+                  const end = e.target.selectionEnd;
+                  const newValue = config.systemInstruction.substring(0, start) + "\n" + config.systemInstruction.substring(end);
+                  setConfig({ ...config, systemInstruction: newValue });
+                  setTimeout(() => {
+                    e.target.selectionStart = e.target.selectionEnd = start + 1;
+                  }, 0);
+                }
+              }}
               placeholder="Defina a persona e regras da IA..."
               rows={6}
             />

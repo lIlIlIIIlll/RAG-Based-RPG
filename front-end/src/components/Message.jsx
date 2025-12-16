@@ -252,6 +252,17 @@ const Message = ({
                   if (e.key === 'Escape') {
                     e.preventDefault();
                     setIsEditing(false);
+                  } else if (e.key === 'Enter' && e.shiftKey) {
+                    e.preventDefault();
+                    const start = e.target.selectionStart;
+                    const end = e.target.selectionEnd;
+                    const newValue = editText.substring(0, start) + "\n" + editText.substring(end);
+                    setEditText(newValue);
+                    setTimeout(() => {
+                      if (textareaRef.current) {
+                        textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 1;
+                      }
+                    }, 0);
                   }
                 }}
                 autoFocus
