@@ -197,6 +197,8 @@ async function searchMessages(req, res, next) {
     const chatMetadata = await chatService.getChatDetails(chatToken);
     const apiKey = chatMetadata?.config?.geminiApiKey;
 
+    console.log(`[Controller] searchMessages - chatToken: ${chatToken}, hasMetadata: ${!!chatMetadata}, hasConfig: ${!!chatMetadata?.config}, hasApiKey: ${!!apiKey}`);
+
     const results = await chatService.searchMessages(
       chatToken,
       collectionName,

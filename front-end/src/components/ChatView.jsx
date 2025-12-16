@@ -71,7 +71,8 @@ const ChatView = ({ chatToken }) => {
     if (!userMessage.startsWith('/r ')) {
       try {
         const chatDetails = await apiClient.get(`/chat/${chatToken}`);
-        if (!chatDetails.data?.config?.apiKey) {
+        const config = chatDetails.data?.config;
+        if (!config?.geminiApiKey && !config?.openrouterApiKey) {
           addToast({
             type: "warning",
             message: "Configure a API Key nas configurações antes de enviar mensagens."

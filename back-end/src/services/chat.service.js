@@ -892,7 +892,7 @@ async function importMemories(chatToken, data, collections, onProgress) {
   const chatMetadata = await chatStorage.getChatMetadata(chatToken);
   if (!chatMetadata) throw new Error("Chat não encontrado.");
 
-  const apiKey = chatMetadata.config?.apiKey;
+  const apiKey = chatMetadata.config?.geminiApiKey;
 
   // Verifica se os embeddings no arquivo são compatíveis
   const hasEmbeddings = data.version === "1.1" && data.embeddingDimension === config.embeddingDimension;
