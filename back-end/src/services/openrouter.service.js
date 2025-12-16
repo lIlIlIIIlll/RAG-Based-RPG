@@ -228,24 +228,52 @@ async function generateChatResponse(
             requestBody.tools = tools;
         }
 
-        // Faz a requisição para o OpenRouter
-        const response = await withTimeout(
-            fetch(OPENROUTER_API_URL, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": config.appUrl || "http://localhost:3000",
-                    "X-Title": "RAG-Based-RPG",
-                },
-                body: JSON.stringify(requestBody),
-            }),
-            120000 // 120s timeout
-        );
+        // Função interna para fazer a requisição
+        const makeRequest = async (body) => {
+            const response = await withTimeout(
+                fetch(OPENROUTER_API_URL, {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${apiKey}`,
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": config.appUrl || "http://localhost:3000",
+                        "X-Title": "RAG-Based-RPG",
+                    },
+                    body: JSON.stringify(body),
+                }),
+                120000 // 120s timeout
+            );
+            return response;
+        };
 
+        // Faz a requisição para o OpenRouter
+        let response = await makeRequest(requestBody);
+
+        // Fallback: Se o modelo não suporta tools, refaz sem tools
         if (!response.ok) {
             const errorData = await response.text();
-            throw new Error(`OpenRouter API error (${response.status}): ${errorData}`);
+
+            // Detecta erro específico de "no endpoints support tool use"
+            if (
+                response.status === 404 &&
+                errorData.includes("No endpoints found that support tool use") &&
+                requestBody.tools
+            ) {
+                console.warn(
+                    `[OpenRouter] Modelo ${modelName} não suporta tools. Refazendo requisição sem tools...`
+                );
+
+                // Remove tools e refaz a requisição
+                delete requestBody.tools;
+                response = await makeRequest(requestBody);
+
+                if (!response.ok) {
+                    const retryErrorData = await response.text();
+                    throw new Error(`OpenRouter API error (${response.status}): ${retryErrorData}`);
+                }
+            } else {
+                throw new Error(`OpenRouter API error (${response.status}): ${errorData}`);
+            }
         }
 
         const data = await response.json();

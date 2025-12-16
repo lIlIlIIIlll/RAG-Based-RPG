@@ -193,10 +193,16 @@ async function searchMessages(req, res, next) {
       return res.status(400).json({ error: "O campo 'text' é obrigatório." });
     }
 
+    // Busca a API Key dos metadados do chat
+    const chatMetadata = await chatService.getChatDetails(chatToken);
+    const apiKey = chatMetadata?.config?.geminiApiKey;
+
     const results = await chatService.searchMessages(
       chatToken,
       collectionName,
-      text
+      text,
+      5, // limit padrão
+      apiKey
     );
     res.status(200).json(results);
   } catch (error) {
