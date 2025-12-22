@@ -110,7 +110,7 @@ async function generateSearchQuery(contextText, apiKey) {
 
       // Usa um modelo leve para tarefas auxiliares
       const auxModel = genAI.getGenerativeModel({
-        model: "gemini-robotics-er-1.5-preview",
+        model: "gemma-3-27b",
         safetySettings: safetySettings
       });
 

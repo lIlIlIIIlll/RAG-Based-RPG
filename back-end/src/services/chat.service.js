@@ -4,6 +4,7 @@ const lanceDBService = require("./lancedb.service");
 const chatStorage = require("./chatStorage.service");
 const geminiService = require("./gemini.service");
 const openrouterService = require("./openrouter.service");
+const googleProvider = require("./google.provider");
 const config = require("../config");
 
 // Função auxiliar para contar palavras
@@ -36,6 +37,11 @@ async function createChat(userId) {
       systemInstruction: config.systemInstructionTemplate,
       geminiApiKey: "", // API Key do Gemini (usado APENAS para embeddings)
       openrouterApiKey: "", // API Key do OpenRouter (usado para LLM)
+      // Google Provider config
+      provider: "openrouter", // "openrouter" | "google"
+      googleApiKeys: [], // Array of Google API keys for LLM (rotates on quota)
+      googleModelName: "gemini-2.5-flash", // Model name for Google provider
+      rateLimits: { rpm: 5, tpm: 250000, rpd: 20 }, // User-configurable rate limits
     },
   };
 
@@ -197,9 +203,22 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
   const chatMetadata = await chatStorage.getChatMetadata(chatToken);
   if (!chatMetadata) throw new Error("Chat não encontrado.");
 
-  const { geminiApiKey, openrouterApiKey, modelName, temperature, systemInstruction } = chatMetadata.config;
+  const {
+    geminiApiKey, openrouterApiKey, modelName, temperature, systemInstruction,
+    provider, googleApiKeys, googleModelName, rateLimits
+  } = chatMetadata.config;
+
   if (!geminiApiKey) throw new Error("API Key do Gemini não configurada (necessária para embeddings).");
-  if (!openrouterApiKey) throw new Error("API Key do OpenRouter não configurada.");
+
+  // Validate provider-specific keys
+  const useGoogleProvider = provider === "google";
+  if (useGoogleProvider) {
+    if (!googleApiKeys || googleApiKeys.length === 0) {
+      throw new Error("Nenhuma API Key do Google configurada para o provider Google.");
+    }
+  } else {
+    if (!openrouterApiKey) throw new Error("API Key do OpenRouter não configurada.");
+  }
 
   // 2. Salva mensagem do usuário no histórico
   // Processa anexos se houver
@@ -441,16 +460,25 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     }
   ];
 
-  // 8. Chama OpenRouter com Tools
-  const generationOptions = {
+  // 8. Chama Provider com Tools
+  const generationOptions = useGoogleProvider ? {
+    modelName: googleModelName || "gemini-2.5-flash",
+    temperature,
+    tools,
+    apiKeys: googleApiKeys,
+    rateLimits: rateLimits || { rpm: 5, tpm: 250000, rpd: 20 }
+  } : {
     modelName,
     temperature,
     tools,
     apiKey: openrouterApiKey
   };
 
-  // Função auxiliar para chamar OpenRouter
+  // Função auxiliar para chamar o provider correto
   const generateResponse = async (history, systemInst, options) => {
+    if (useGoogleProvider) {
+      return await googleProvider.generateChatResponse(history, systemInst, options);
+    }
     return await openrouterService.generateChatResponse(history, systemInst, options);
   };
 

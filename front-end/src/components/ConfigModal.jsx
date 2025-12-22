@@ -1,6 +1,6 @@
 // src/components/ConfigModal/ConfigModal.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Save, ExternalLink, Check, AlertCircle, Zap, Search } from "lucide-react";
+import { X, Save, ExternalLink, Check, AlertCircle, Zap, Search, Key, Settings, Cpu } from "lucide-react";
 import { apiClient, updateChatConfig } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import styles from "./ConfigModal.module.css";
@@ -13,6 +13,14 @@ const POPULAR_MODELS = [
   { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
   { id: "openai/gpt-4o", name: "GPT-4o" },
   { id: "meta-llama/llama-4-maverick", name: "Llama 4 Maverick" },
+];
+
+// Modelos populares do Google (direto)
+const GOOGLE_MODELS = [
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
+  { id: "gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite" },
 ];
 
 // Gera code_verifier e code_challenge para OAuth PKCE
@@ -42,6 +50,11 @@ const ConfigModal = ({ chatToken, onClose }) => {
     systemInstruction: "",
     geminiApiKey: "",
     openrouterApiKey: "",
+    // Google Provider fields
+    provider: "openrouter",
+    googleApiKeys: [],
+    googleModelName: "gemini-2.5-flash",
+    rateLimits: { rpm: 5, tpm: 250000, rpd: 20 },
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,6 +62,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
   const [allModels, setAllModels] = useState([]);
   const [filteredModels, setFilteredModels] = useState([]);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [googleApiKeysText, setGoogleApiKeysText] = useState(""); // For textarea
   const { addToast } = useToast();
 
   // Carrega todos os modelos do OpenRouter
@@ -144,12 +158,20 @@ const ConfigModal = ({ chatToken, onClose }) => {
         const response = await apiClient.get(`/chat/${chatToken}`);
         const currentConfig = response.data.config || {};
 
+        const googleKeys = currentConfig.googleApiKeys || [];
+        setGoogleApiKeysText(googleKeys.join("\n"));
+
         setConfig({
           modelName: currentConfig.modelName || "google/gemini-2.5-pro-preview",
           temperature: currentConfig.temperature ?? 0.7,
           systemInstruction: currentConfig.systemInstruction || "",
           geminiApiKey: currentConfig.geminiApiKey || "",
           openrouterApiKey: currentConfig.openrouterApiKey || "",
+          // Google Provider fields
+          provider: currentConfig.provider || "openrouter",
+          googleApiKeys: googleKeys,
+          googleModelName: currentConfig.googleModelName || "gemini-2.5-flash",
+          rateLimits: currentConfig.rateLimits || { rpm: 5, tpm: 250000, rpd: 20 },
         });
       } catch (error) {
         addToast({ type: "error", message: "Erro ao carregar configurações." });
@@ -196,6 +218,13 @@ const ConfigModal = ({ chatToken, onClose }) => {
     window.location.href = authUrl;
   };
 
+  // Atualiza Google API Keys do textarea
+  const handleGoogleApiKeysChange = (text) => {
+    setGoogleApiKeysText(text);
+    const keys = text.split("\n").map(k => k.trim()).filter(k => k.length > 0);
+    setConfig({ ...config, googleApiKeys: keys });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -212,6 +241,8 @@ const ConfigModal = ({ chatToken, onClose }) => {
   if (loading) return null;
 
   const isOpenRouterConnected = !!config.openrouterApiKey;
+  const isGoogleConfigured = config.googleApiKeys && config.googleApiKeys.length > 0;
+  const isGoogleProvider = config.provider === "google";
 
   return (
     <div className={styles.overlay} onClick={handleBackdropClick}>
@@ -224,78 +255,211 @@ const ConfigModal = ({ chatToken, onClose }) => {
         </div>
 
         <div className={styles.body}>
-          {/* OpenRouter Card */}
-          <div className={styles.openrouterCard}>
-            <div className={styles.cardHeader}>
-              <div className={styles.cardTitle}>
-                <Zap size={20} className={styles.openrouterIcon} />
-                <span>OpenRouter</span>
-              </div>
-              <div className={`${styles.connectionBadge} ${isOpenRouterConnected ? styles.badgeConnected : styles.badgeDisconnected}`}>
-                {isOpenRouterConnected ? (
-                  <>
-                    <Check size={14} />
-                    <span>Conectado</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle size={14} />
-                    <span>Desconectado</span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className={styles.cardContent}>
-              {/* Modelo */}
-              <div className={styles.modelSection}>
-                <label>
-                  <Search size={14} />
-                  Modelo
-                </label>
-                <div className={styles.modelSearchContainer}>
-                  <input
-                    type="text"
-                    value={config.modelName}
-                    onChange={(e) => handleModelSearch(e.target.value)}
-                    onFocus={() => setShowModelDropdown(true)}
-                    onBlur={() => setTimeout(() => setShowModelDropdown(false), 200)}
-                    placeholder="Buscar modelo..."
-                    autoComplete="off"
-                    className={styles.modelInput}
-                  />
-                  {showModelDropdown && filteredModels.length > 0 && (
-                    <div className={styles.modelDropdown}>
-                      {filteredModels.map((model) => (
-                        <div
-                          key={model.id}
-                          className={styles.modelOption}
-                          onMouseDown={() => selectModel(model.id)}
-                        >
-                          <span className={styles.modelId}>{model.id}</span>
-                          <span className={styles.modelName}>{model.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className={styles.modelCount}>
-                  {allModels.length} modelos disponíveis
-                </span>
-              </div>
-
-              {/* Botão de Conexão */}
+          {/* Provider Toggle */}
+          <div className={styles.providerToggle}>
+            <label className={styles.toggleLabel}>
+              <Cpu size={16} />
+              Provider LLM
+            </label>
+            <div className={styles.toggleButtons}>
               <button
                 type="button"
-                className={`${styles.openrouterBtn} ${isOpenRouterConnected ? styles.reconnect : ''}`}
-                onClick={handleConnectOpenRouter}
-                disabled={isConnecting}
+                className={`${styles.toggleBtn} ${!isGoogleProvider ? styles.toggleActive : ''}`}
+                onClick={() => setConfig({ ...config, provider: "openrouter" })}
               >
-                <ExternalLink size={16} />
-                {isConnecting ? "Conectando..." : isOpenRouterConnected ? "Reconectar" : "Conectar ao OpenRouter"}
+                <Zap size={14} />
+                OpenRouter
+              </button>
+              <button
+                type="button"
+                className={`${styles.toggleBtn} ${isGoogleProvider ? styles.toggleActive : ''}`}
+                onClick={() => setConfig({ ...config, provider: "google" })}
+              >
+                <Cpu size={14} />
+                Google Direct
               </button>
             </div>
           </div>
+
+          {/* OpenRouter Section */}
+          {!isGoogleProvider && (
+            <div className={styles.openrouterCard}>
+              <div className={styles.cardHeader}>
+                <div className={styles.cardTitle}>
+                  <Zap size={20} className={styles.openrouterIcon} />
+                  <span>OpenRouter</span>
+                </div>
+                <div className={`${styles.connectionBadge} ${isOpenRouterConnected ? styles.badgeConnected : styles.badgeDisconnected}`}>
+                  {isOpenRouterConnected ? (
+                    <>
+                      <Check size={14} />
+                      <span>Conectado</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={14} />
+                      <span>Desconectado</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className={styles.cardContent}>
+                {/* Modelo OpenRouter */}
+                <div className={styles.modelSection}>
+                  <label>
+                    <Search size={14} />
+                    Modelo
+                  </label>
+                  <div className={styles.modelSearchContainer}>
+                    <input
+                      type="text"
+                      value={config.modelName}
+                      onChange={(e) => handleModelSearch(e.target.value)}
+                      onFocus={() => setShowModelDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowModelDropdown(false), 200)}
+                      placeholder="Buscar modelo..."
+                      autoComplete="off"
+                      className={styles.modelInput}
+                    />
+                    {showModelDropdown && filteredModels.length > 0 && (
+                      <div className={styles.modelDropdown}>
+                        {filteredModels.map((model) => (
+                          <div
+                            key={model.id}
+                            className={styles.modelOption}
+                            onMouseDown={() => selectModel(model.id)}
+                          >
+                            <span className={styles.modelId}>{model.id}</span>
+                            <span className={styles.modelName}>{model.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className={styles.modelCount}>
+                    {allModels.length} modelos disponíveis
+                  </span>
+                </div>
+
+                {/* Botão de Conexão */}
+                <button
+                  type="button"
+                  className={`${styles.openrouterBtn} ${isOpenRouterConnected ? styles.reconnect : ''}`}
+                  onClick={handleConnectOpenRouter}
+                  disabled={isConnecting}
+                >
+                  <ExternalLink size={16} />
+                  {isConnecting ? "Conectando..." : isOpenRouterConnected ? "Reconectar" : "Conectar ao OpenRouter"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Google Provider Section */}
+          {isGoogleProvider && (
+            <div className={styles.openrouterCard}>
+              <div className={styles.cardHeader}>
+                <div className={styles.cardTitle}>
+                  <Cpu size={20} className={styles.openrouterIcon} />
+                  <span>Google Gemini (Direto)</span>
+                </div>
+                <div className={`${styles.connectionBadge} ${isGoogleConfigured ? styles.badgeConnected : styles.badgeDisconnected}`}>
+                  {isGoogleConfigured ? (
+                    <>
+                      <Check size={14} />
+                      <span>{config.googleApiKeys.length} key(s)</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={14} />
+                      <span>Sem Keys</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className={styles.cardContent}>
+                {/* Modelo Google */}
+                <div className={styles.modelSection}>
+                  <label>
+                    <Cpu size={14} />
+                    Modelo Google
+                  </label>
+                  <input
+                    type="text"
+                    value={config.googleModelName}
+                    onChange={(e) => setConfig({ ...config, googleModelName: e.target.value })}
+                    placeholder="gemini-2.5-flash"
+                    className={styles.modelInput}
+                  />
+                </div>
+
+                {/* API Keys Textarea */}
+                <div className={styles.modelSection}>
+                  <label>
+                    <Key size={14} />
+                    API Keys (uma por linha)
+                  </label>
+                  <textarea
+                    value={googleApiKeysText}
+                    onChange={(e) => handleGoogleApiKeysChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Permite Enter e Shift+Enter para quebra de linha sem propagação
+                      if (e.key === "Enter") {
+                        e.stopPropagation();
+                      }
+                    }}
+                    placeholder={"AIzaSyABC123...\nAIzaSyDEF456...\nAIzaSyGHI789..."}
+                    rows={4}
+                    className={styles.apiKeysTextarea}
+                  />
+                  <span className={styles.hint}>
+                    ⚡ Keys rotacionam automaticamente quando atingem o limite diário (20 requests/dia).
+                  </span>
+                </div>
+
+                {/* Rate Limits Config */}
+                <div className={styles.rateLimitsSection}>
+                  <label>
+                    <Settings size={14} />
+                    Limites (por API Key)
+                  </label>
+                  <div className={styles.rateLimitsGrid}>
+                    <div className={styles.rateLimitInput}>
+                      <span>RPD</span>
+                      <input
+                        type="number"
+                        value={config.rateLimits.rpd}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          rateLimits: { ...config.rateLimits, rpd: parseInt(e.target.value) || 20 }
+                        })}
+                        min="1"
+                        max="1000"
+                      />
+                    </div>
+                    <div className={styles.rateLimitInput}>
+                      <span>RPM</span>
+                      <input
+                        type="number"
+                        value={config.rateLimits.rpm}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          rateLimits: { ...config.rateLimits, rpm: parseInt(e.target.value) || 5 }
+                        })}
+                        min="1"
+                        max="100"
+                      />
+                    </div>
+                  </div>
+                  <span className={styles.hint}>
+                    Ajuste baseado no modelo escolhido. Gemini 2.5 Flash: 10 RPM, 250 RPD.
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* API Key do Gemini (apenas embeddings) */}
           <div className={styles.field}>

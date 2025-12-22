@@ -492,7 +492,14 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
               placeholder="Digite a nova informação..."
               value={newMemoryText}
               onChange={(e) => setNewMemoryText(e.target.value)}
+              onKeyDown={(e) => {
+                // Permite Enter para quebra de linha sem propagação
+                if (e.key === "Enter") {
+                  e.stopPropagation();
+                }
+              }}
               autoFocus
+              rows={6}
             />
 
             <div className={styles.modalFooter}>

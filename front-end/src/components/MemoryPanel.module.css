@@ -425,6 +425,7 @@
 
 .modalTextarea {
   width: 100%;
+  box-sizing: border-box;
   background: #1a1a1a;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -432,8 +433,10 @@
   color: #fff;
   font-family: inherit;
   font-size: 14px;
-  resize: none;
-  min-height: 100px;
+  resize: vertical;
+  min-height: 120px;
+  white-space: pre-wrap;
+  line-height: 1.5;
 }
 
 .modalTextarea:focus {
