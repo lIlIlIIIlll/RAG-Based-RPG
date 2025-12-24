@@ -113,9 +113,10 @@ function convertHistoryToGemini(history) {
         });
 
         // Handle function response turns (role = "function")
+        // Gemini API expects functionResponse parts to have role "function", not "user"
         if (turn.role === "function") {
             return {
-                role: "user", // Gemini expects function responses as user turns
+                role: "function",
                 parts: sanitizedParts
             };
         }

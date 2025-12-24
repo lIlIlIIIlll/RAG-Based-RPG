@@ -792,6 +792,8 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
         // Executa Tools
         const functionResponseParts = [];
         let needsFollowUp = false; // Flag para indicar se precisamos de resposta adicional
+        let memoryInsertCount = 0; // Contador para aplicar delay entre inserções de memória
+        const MEMORY_INSERT_DELAY = 1500; // 1.5s entre inserções para evitar rate limiting no embedding API
 
         for (const call of functionCalls) {
             const name = call.name;
@@ -802,6 +804,13 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
 
             try {
                 if (name === "insert_fact") {
+                    // Aplica delay entre inserções para evitar rate limiting no embedding API
+                    if (memoryInsertCount > 0) {
+                        console.log(`[Service] Aguardando ${MEMORY_INSERT_DELAY}ms antes de inserir memória (rate limit protection)...`);
+                        await new Promise(r => setTimeout(r, MEMORY_INSERT_DELAY));
+                    }
+                    memoryInsertCount++;
+
                     const msgId = await addMessage(chatToken, "fatos", args.text, "model", [], geminiApiKey);
                     toolResult = { status: "success", message: "Fato inserido com sucesso." };
 
@@ -814,6 +823,13 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
                     });
 
                 } else if (name === "insert_concept") {
+                    // Aplica delay entre inserções para evitar rate limiting no embedding API
+                    if (memoryInsertCount > 0) {
+                        console.log(`[Service] Aguardando ${MEMORY_INSERT_DELAY}ms antes de inserir memória (rate limit protection)...`);
+                        await new Promise(r => setTimeout(r, MEMORY_INSERT_DELAY));
+                    }
+                    memoryInsertCount++;
+
                     const msgId = await addMessage(chatToken, "conceitos", args.text, "model", [], geminiApiKey);
                     toolResult = { status: "success", message: "Conceito inserido com sucesso." };
 
