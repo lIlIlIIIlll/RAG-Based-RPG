@@ -100,17 +100,29 @@ function getKeysStatus(apiKeys) {
  */
 function convertHistoryToGemini(history) {
     return history.map(turn => {
+        // Sanitiza parts removendo propriedades auxiliares internas
+        const sanitizedParts = (turn.parts || []).map(part => {
+            // Remove propriedades auxiliares que começam com "_"
+            const cleanPart = {};
+            for (const [key, value] of Object.entries(part)) {
+                if (!key.startsWith("_")) {
+                    cleanPart[key] = value;
+                }
+            }
+            return cleanPart;
+        });
+
         // Handle function response turns (role = "function")
         if (turn.role === "function") {
             return {
                 role: "user", // Gemini expects function responses as user turns
-                parts: turn.parts
+                parts: sanitizedParts
             };
         }
 
         return {
             role: turn.role === "user" ? "user" : "model",
-            parts: turn.parts
+            parts: sanitizedParts
         };
     });
 }

@@ -5,6 +5,7 @@ const path = require("path");
 const fs = require("fs");
 const config = require("../config");
 const { chatMessageSchema } = require("../config/lancedb.schema");
+const { hebbianAssociationSchema } = require("../config/hebbian.schema");
 
 const dbPath = path.join(process.cwd(), config.dbPath);
 
@@ -120,6 +121,10 @@ async function searchByVector(chatToken, collectionName, queryVector, limit = 10
   console.log(
     `[LanceDB] Busca em ${tableName} retornou ${results.length} resultados.`
   );
+  // DEBUG: Mostra distâncias retornadas
+  if (results.length > 0) {
+    console.log(`[LanceDB DEBUG] Primeiros 3 resultados _distance:`, results.slice(0, 3).map(r => ({ text: r.text?.substring(0, 30), _distance: r._distance })));
+  }
   return results;
 }
 
@@ -304,6 +309,321 @@ async function searchAcrossChats(chatTokens, collections, queryVector, limitPerC
   return allResults.flat();
 }
 
+// ============================================
+// HYBRID SEARCH (BM25 + Vetorial)
+// ============================================
+
+/**
+ * Realiza busca híbrida combinando vetorial + full-text search.
+ * @param {string} chatToken
+ * @param {string} collectionName
+ * @param {number[]} queryVector
+ * @param {string} queryText
+ * @param {number} limit
+ * @returns {Promise<object[]>}
+ */
+async function hybridSearch(chatToken, collectionName, queryVector, queryText, limit = 50) {
+  const db = await getDbConnection();
+  const tableName = `${chatToken}-${collectionName}`;
+
+  try {
+    const table = await db.openTable(tableName);
+
+    // Busca vetorial (principal)
+    const vectorResults = await table.search(queryVector).limit(limit).toArray();
+
+    // Nota: LanceDB FTS requer índice FTS criado previamente com createIndex()
+    // Por ora, focamos na busca vetorial que é mais robusta
+    // O RRF ainda funciona com apenas um conjunto de resultados
+    const textResults = [];
+
+    // Reciprocal Rank Fusion (funciona mesmo com textResults vazio)
+    const combined = reciprocalRankFusion(vectorResults, textResults);
+    console.log(`[LanceDB] Hybrid search em ${tableName}: ${vectorResults.length} resultados.`);
+
+    return combined.slice(0, limit);
+  } catch (e) {
+    console.warn(`[LanceDB] Erro em hybrid search ${tableName}:`, e.message);
+    return [];
+  }
+}
+
+/**
+ * Reciprocal Rank Fusion para combinar resultados de múltiplas buscas.
+ * @param  {...object[]} resultSets - Arrays de resultados para fundir
+ * @returns {object[]} - Resultados combinados e ordenados
+ */
+function reciprocalRankFusion(...resultSets) {
+  const k = 60; // Parâmetro RRF padrão
+  const scores = new Map();
+  const items = new Map();
+
+  for (const results of resultSets) {
+    results.forEach((item, rank) => {
+      const id = item.messageid;
+      const score = 1 / (k + rank + 1);
+      scores.set(id, (scores.get(id) || 0) + score);
+      if (!items.has(id)) items.set(id, item);
+    });
+  }
+
+  return Array.from(scores.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, score]) => ({ ...items.get(id), _rrfScore: score }));
+}
+
+// ============================================
+// FREQUENCY BIAS (Neuroplasticidade)
+// ============================================
+
+/**
+ * Marca memórias como acessadas (incrementa accessCount).
+ * @param {string} chatToken
+ * @param {string[]} messageids
+ * @param {number} currentMessageCount
+ */
+async function markMemoriesAccessed(chatToken, messageids, currentMessageCount) {
+  const db = await getDbConnection();
+
+  for (const collectionName of config.collectionNames) {
+    const tableName = `${chatToken}-${collectionName}`;
+    try {
+      const table = await db.openTable(tableName);
+
+      for (const messageid of messageids) {
+        const records = await table.query().where(`messageid = '${messageid}'`).limit(1).toArray();
+        if (records.length > 0) {
+          const record = records[0];
+          const newAccessCount = (record.accessCount || 0) + 1;
+
+          // Update via delete + add
+          await table.delete(`messageid = '${messageid}'`);
+          await table.add([{
+            ...record,
+            accessCount: newAccessCount,
+            lastMessageAccessed: currentMessageCount
+          }]);
+        }
+      }
+    } catch (e) {
+      // Ignora erros de tabelas não encontradas
+    }
+  }
+
+  console.log(`[LanceDB] Marcadas ${messageids.length} memórias como acessadas.`);
+}
+
+/**
+ * Aplica frequency bias aos resultados (memórias mais acessadas ganham boost).
+ * @param {object[]} results
+ * @returns {object[]}
+ */
+function applyFrequencyBias(results) {
+  return results.map(r => {
+    const accessCount = r.accessCount || 0;
+    // Log para evitar explosão, max 30% de boost
+    const frequencyBoost = Math.min(0.30, Math.log(1 + accessCount) * 0.05);
+
+    // Guarda distância original, usa 1 como fallback se undefined
+    const originalDistance = r._distance ?? r._rrfScore ?? 1;
+
+    return {
+      ...r,
+      _originalDistance: originalDistance,
+      _distance: originalDistance * (1 - frequencyBoost),
+      _frequencyBoost: frequencyBoost
+    };
+  });
+}
+
+// ============================================
+// HEBBIAN ASSOCIATIONS
+// ============================================
+
+/**
+ * Inicializa tabela de associações Hebbianas para um chat.
+ * @param {string} chatToken
+ */
+async function initializeHebbianTable(chatToken) {
+  const db = await getDbConnection();
+  const tableName = `${chatToken}-hebbian`;
+
+  try {
+    await db.createEmptyTable(tableName, hebbianAssociationSchema);
+    console.log(`[LanceDB] Tabela Hebbiana '${tableName}' criada.`);
+  } catch (e) {
+    if (!e.message?.toLowerCase().includes("already exists")) {
+      console.error(`[LanceDB] Erro ao criar tabela Hebbiana:`, e);
+    }
+  }
+}
+
+/**
+ * Atualiza associações Hebbianas após uma busca (co-ocorrência).
+ * @param {string} chatToken
+ * @param {object[]} retrievedMemories
+ * @param {number} currentMessageCount
+ */
+async function updateHebbianAssociations(chatToken, retrievedMemories, currentMessageCount) {
+  const db = await getDbConnection();
+  const tableName = `${chatToken}-hebbian`;
+  const LEARNING_RATE = 0.1;
+  const MAX_STRENGTH = 0.95;
+  const MAX_ASSOCIATIONS_PER_MEMORY = 20;
+
+  try {
+    // Tenta abrir a tabela, cria se não existir
+    let table;
+    try {
+      table = await db.openTable(tableName);
+    } catch (e) {
+      await initializeHebbianTable(chatToken);
+      table = await db.openTable(tableName);
+    }
+
+    // Gera pares de memórias co-recuperadas
+    for (let i = 0; i < retrievedMemories.length && i < 10; i++) {
+      for (let j = i + 1; j < retrievedMemories.length && j < 10; j++) {
+        const sourceId = retrievedMemories[i].messageid;
+        const targetId = retrievedMemories[j].messageid;
+
+        // Busca associação existente
+        const existing = await table.query()
+          .where(`("sourceId" = '${sourceId}' AND "targetId" = '${targetId}') OR ("sourceId" = '${targetId}' AND "targetId" = '${sourceId}')`)
+          .limit(1)
+          .toArray();
+
+        const proximityBonus = 1 - (Math.abs(i - j) / retrievedMemories.length);
+
+        if (existing.length > 0) {
+          // Atualiza associação existente
+          const assoc = existing[0];
+          const newStrength = Math.min(MAX_STRENGTH, assoc.strength + LEARNING_RATE * proximityBonus);
+
+          await table.delete(`"sourceId" = '${assoc.sourceId}' AND "targetId" = '${assoc.targetId}'`);
+          await table.add([{
+            ...assoc,
+            strength: newStrength,
+            coOccurrences: (assoc.coOccurrences || 0) + 1,
+            lastMessageUpdated: currentMessageCount
+          }]);
+        } else {
+          // Cria nova associação
+          await table.add([{
+            sourceId,
+            targetId,
+            strength: LEARNING_RATE * proximityBonus,
+            coOccurrences: 1,
+            lastMessageUpdated: currentMessageCount,
+            chatToken
+          }]);
+        }
+      }
+    }
+
+    console.log(`[LanceDB] Associações Hebbianas atualizadas para ${Math.min(10, retrievedMemories.length)} memórias.`);
+  } catch (e) {
+    console.warn(`[LanceDB] Erro ao atualizar associações Hebbianas:`, e.message);
+  }
+}
+
+/**
+ * Aplica boost Hebbiano (puxa memórias associadas).
+ * @param {string} chatToken
+ * @param {object[]} results
+ * @returns {Promise<object[]>}
+ */
+async function applyHebbianBoost(chatToken, results) {
+  const db = await getDbConnection();
+  const tableName = `${chatToken}-hebbian`;
+  const MIN_STRENGTH = 0.3; // Só puxa se associação for forte
+  const boostedResults = [...results];
+  const existingIds = new Set(results.map(r => r.messageid));
+
+  try {
+    const table = await db.openTable(tableName);
+
+    for (const memory of results.slice(0, 5)) { // Limita a 5 para performance
+      // Busca associações fortes
+      const associations = await table.query()
+        .where(`("sourceId" = '${memory.messageid}' OR "targetId" = '${memory.messageid}') AND "strength" >= ${MIN_STRENGTH}`)
+        .limit(5)
+        .toArray();
+
+      for (const assoc of associations) {
+        const linkedId = assoc.sourceId === memory.messageid ? assoc.targetId : assoc.sourceId;
+
+        if (!existingIds.has(linkedId)) {
+          // Busca a memória associada
+          for (const collectionName of config.collectionNames) {
+            const collTable = await db.openTable(`${chatToken}-${collectionName}`);
+            const linked = await collTable.query().where(`messageid = '${linkedId}'`).limit(1).toArray();
+
+            if (linked.length > 0) {
+              const linkedMemory = linked[0];
+              // Boost baseado na força da associação (max 30%)
+              const hebbianBoost = assoc.strength * 0.30;
+              linkedMemory._distance = (linkedMemory._distance || 1) * (1 - hebbianBoost);
+              linkedMemory._hebbianPulledBy = memory.messageid;
+              linkedMemory._hebbianStrength = assoc.strength;
+              linkedMemory.category = collectionName;
+
+              boostedResults.push(linkedMemory);
+              existingIds.add(linkedId);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`[LanceDB] Hebbian boost: ${boostedResults.length - results.length} memórias puxadas.`);
+  } catch (e) {
+    // Tabela pode não existir ainda
+  }
+
+  return boostedResults;
+}
+
+/**
+ * Aplica decay sináptico (enfraquece associações não usadas).
+ * @param {string} chatToken
+ * @param {number} currentMessageCount
+ * @param {number} decayRate
+ */
+async function applySynapticDecay(chatToken, currentMessageCount, decayRate = 0.01) {
+  const db = await getDbConnection();
+  const tableName = `${chatToken}-hebbian`;
+  const MIN_STRENGTH = 0.05;
+
+  try {
+    const table = await db.openTable(tableName);
+    const associations = await table.query().toArray();
+
+    let decayed = 0;
+    let deleted = 0;
+
+    for (const assoc of associations) {
+      const messagesSinceUpdate = currentMessageCount - (assoc.lastMessageUpdated || 0);
+      const decayFactor = Math.exp(-decayRate * messagesSinceUpdate);
+      const newStrength = assoc.strength * decayFactor;
+
+      await table.delete(`"sourceId" = '${assoc.sourceId}' AND "targetId" = '${assoc.targetId}'`);
+
+      if (newStrength >= MIN_STRENGTH) {
+        await table.add([{ ...assoc, strength: newStrength }]);
+        decayed++;
+      } else {
+        deleted++;
+      }
+    }
+
+    console.log(`[LanceDB] Synaptic decay: ${decayed} associações enfraquecidas, ${deleted} esquecidas.`);
+  } catch (e) {
+    // Tabela pode não existir
+  }
+}
+
 module.exports = {
   initializeCollections,
   deleteChatTables,
@@ -312,5 +632,108 @@ module.exports = {
   getAllRecordsFromCollection,
   updateRecordByMessageId,
   deleteRecordByMessageId,
-  searchAcrossChats
+  searchAcrossChats,
+  // Novas funções RAG
+  hybridSearch,
+  reciprocalRankFusion,
+  // Frequency Bias
+  markMemoriesAccessed,
+  applyFrequencyBias,
+  // Hebbian
+  initializeHebbianTable,
+  updateHebbianAssociations,
+  applyHebbianBoost,
+  applySynapticDecay,
+  // Embedding Repair
+  repairZeroEmbeddings: async function (chatToken, generateEmbeddingFn, apiKey, collections = ['conceitos', 'fatos']) {
+    const db = await getDbConnection();
+    const results = {
+      repaired: 0,
+      failed: 0,
+      skipped: 0,
+      details: []
+    };
+
+    // Função auxiliar para verificar vetor zerado
+    const isZeroVector = (vector) => {
+      if (!vector || !Array.isArray(vector)) return true;
+      const sum = vector.reduce((acc, val) => acc + Math.abs(val), 0);
+      return sum < 0.001;
+    };
+
+    console.log(`[LanceDB] Iniciando reparo de embeddings para chat ${chatToken}...`);
+
+    for (const collectionName of collections) {
+      const tableName = `${chatToken}-${collectionName}`;
+
+      try {
+        const existingTables = await db.tableNames();
+        if (!existingTables.includes(tableName)) {
+          console.log(`[LanceDB] Tabela ${tableName} não existe, pulando.`);
+          continue;
+        }
+
+        const table = await db.openTable(tableName);
+        const allRecords = await table.query().toArray();
+
+        console.log(`[LanceDB] Verificando ${allRecords.length} registros em ${tableName}...`);
+
+        for (const record of allRecords) {
+          if (isZeroVector(record.vector)) {
+            console.log(`[LanceDB] Vetor zerado: "${record.text?.substring(0, 50)}..."`);
+
+            if (!record.text || record.text.trim().length === 0) {
+              results.skipped++;
+              continue;
+            }
+
+            try {
+              const newVector = await generateEmbeddingFn(record.text, apiKey);
+
+              if (!newVector || isZeroVector(newVector)) {
+                results.failed++;
+                results.details.push({
+                  messageid: record.messageid,
+                  text: record.text?.substring(0, 100),
+                  collection: collectionName,
+                  status: 'failed',
+                  reason: 'Generated embedding is still zero'
+                });
+                continue;
+              }
+
+              await table.delete(`messageid = '${record.messageid}'`);
+              await table.add([{ ...record, vector: newVector }]);
+
+              console.log(`[LanceDB] ✓ Reparado: "${record.text?.substring(0, 50)}..."`);
+              results.repaired++;
+              results.details.push({
+                messageid: record.messageid,
+                text: record.text?.substring(0, 100),
+                collection: collectionName,
+                status: 'repaired'
+              });
+
+              await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (err) {
+              console.error(`[LanceDB] Erro:`, err.message);
+              results.failed++;
+              results.details.push({
+                messageid: record.messageid,
+                text: record.text?.substring(0, 100),
+                collection: collectionName,
+                status: 'failed',
+                reason: err.message
+              });
+            }
+          }
+        }
+      } catch (tableError) {
+        console.error(`[LanceDB] Erro ao processar ${tableName}:`, tableError.message);
+      }
+    }
+
+    console.log(`[LanceDB] Reparo concluído: ${results.repaired} reparados, ${results.failed} falhas, ${results.skipped} pulados.`);
+    return results;
+  }
 };

@@ -815,3 +815,152 @@
     left: auto;
   }
 }
+
+/* --- MEDIA THUMBNAIL --- */
+.mediaThumbnail {
+  position: relative;
+  width: 100%;
+  max-height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s;
+}
+
+.mediaThumbnail:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+}
+
+.thumbnailImage {
+  width: 100%;
+  height: 100%;
+  max-height: 120px;
+  object-fit: cover;
+  display: block;
+}
+
+.pdfThumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  background: rgba(255, 100, 100, 0.1);
+  color: #ff6b6b;
+}
+
+.pdfThumbnail span {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.thumbnailOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: var(--accent-primary);
+}
+
+.mediaThumbnail:hover .thumbnailOverlay {
+  opacity: 1;
+}
+
+/* --- MEDIA MODAL --- */
+.mediaModal {
+  max-width: 400px;
+}
+
+.mediaPreviewContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 200px;
+}
+
+.mediaPreviewImage {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+
+.pdfPreview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  color: var(--text-secondary);
+}
+
+.pdfPreview span {
+  font-size: 12px;
+}
+
+.mediaDescriptionSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mediaDescriptionSection label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+  opacity: 0.7;
+}
+
+/* --- DEBUG INFO (RAG Calibration) --- */
+.debugInfo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.debugInfo span {
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.debugBoost {
+  color: #4ade80 !important;
+  background: rgba(74, 222, 128, 0.1) !important;
+}
+
+.debugPenalty {
+  color: #f87171 !important;
+  background: rgba(248, 113, 113, 0.1) !important;
+}

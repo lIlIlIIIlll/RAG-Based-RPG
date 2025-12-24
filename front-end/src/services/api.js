@@ -2,7 +2,7 @@
 import axios from "axios";
 import log from "./logger";
 
-const API_BASE_URL = "https://n8n-dungeon-master-69-api.r954jc.easypanel.host/api";
+const API_BASE_URL = "http://localhost:3001/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -393,6 +393,106 @@ export const importMemories = async (chatToken, data, collections, onProgress) =
     return result;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao importar memórias.", "error", error);
+    throw error;
+  }
+};
+
+// --- Vetorização de PDFs ---
+
+/**
+ * Vetoriza um PDF, extraindo texto e salvando chunks como memórias.
+ * Usa SSE para enviar progresso em tempo real.
+ * @param {string} chatToken - Token do chat.
+ * @param {string} pdfData - PDF em base64.
+ * @param {string} fileName - Nome do arquivo.
+ * @param {string} collection - Collection onde salvar (fatos, conceitos, etc).
+ * @param {Function} onProgress - Callback de progresso (current, total).
+ * @returns {Promise<Object>} - Resultado da vetorização.
+ */
+export const vectorizePDF = async (chatToken, pdfData, fileName, collection, onProgress) => {
+  const CONTEXT = "API:VECTORIZE_PDF";
+  try {
+    log(CONTEXT, `Iniciando vetorização de: ${fileName}`);
+
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${API_BASE_URL}/chat/${chatToken}/vectorize-pdf`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
+      },
+      body: JSON.stringify({ pdfData, fileName, collection })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let result = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n\n").filter(line => line.startsWith("data: "));
+
+      for (const line of lines) {
+        try {
+          const jsonStr = line.replace("data: ", "");
+          const event = JSON.parse(jsonStr);
+
+          if (event.type === "progress" && onProgress) {
+            onProgress(event.current, event.total);
+          } else if (event.type === "complete") {
+            result = event;
+          } else if (event.type === "error") {
+            throw new Error(event.message);
+          }
+        } catch (e) {
+          // Ignora linhas malformadas
+        }
+      }
+    }
+
+    log(CONTEXT, `Vetorização concluída: ${result?.chunks || 0} chunks.`);
+    return result;
+  } catch (error) {
+    log(CONTEXT, "ERRO: Falha ao vetorizar PDF.", "error", error);
+    throw error;
+  }
+};
+
+/**
+ * Lista documentos vetorizados em uma collection.
+ * @param {string} chatToken - Token do chat.
+ * @param {string} collection - Nome da collection.
+ * @returns {Promise<Array>} - Lista de documentos.
+ */
+export const listVectorizedDocuments = async (chatToken, collection) => {
+  const CONTEXT = "API:LIST_DOCUMENTS";
+  try {
+    const response = await apiClient.get(`/chat/${chatToken}/documents/${collection}`);
+    return response.data;
+  } catch (error) {
+    log(CONTEXT, "ERRO: Falha ao listar documentos.", "error", error);
+    throw error;
+  }
+};
+
+/**
+ * Remove um documento vetorizado (todos os chunks).
+ * @param {string} chatToken - Token do chat.
+ * @param {string} collection - Nome da collection.
+ * @param {string} documentId - ID do documento.
+ * @returns {Promise<Object>} - Resultado da remoção.
+ */
+export const deleteVectorizedDocument = async (chatToken, collection, documentId) => {
+  const CONTEXT = "API:DELETE_DOCUMENT";
+  try {
+    const response = await apiClient.delete(`/chat/${chatToken}/documents/${collection}/${documentId}`);
+    log(CONTEXT, `Documento ${documentId} removido.`);
+    return response.data;
+  } catch (error) {
+    log(CONTEXT, "ERRO: Falha ao deletar documento.", "error", error);
     throw error;
   }
 };

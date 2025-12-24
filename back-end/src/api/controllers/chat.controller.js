@@ -408,6 +408,117 @@ async function searchGlobal(req, res, next) {
   }
 }
 
+// --- Vetorização de PDFs ---
+
+const pdfService = require("../../services/pdf.service");
+
+// [POST] /api/chat/:chatToken/vectorize-pdf
+// Vetoriza um PDF, extraindo texto e salvando chunks como memórias
+async function vectorizePDF(req, res, next) {
+  try {
+    const { chatToken } = req.params;
+    const { pdfData, fileName, collection } = req.body;
+
+    if (!pdfData) {
+      return res.status(400).json({ error: "O campo 'pdfData' (base64) é obrigatório." });
+    }
+    if (!fileName) {
+      return res.status(400).json({ error: "O campo 'fileName' é obrigatório." });
+    }
+    if (!collection) {
+      return res.status(400).json({ error: "O campo 'collection' é obrigatório (fatos, conceitos, etc)." });
+    }
+
+    // Busca API Key dos metadados do chat
+    const chatMetadata = await chatService.getChatDetails(chatToken);
+    const apiKey = chatMetadata?.config?.geminiApiKey;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: "API Key do Gemini não configurada." });
+    }
+
+    // Configura SSE para progresso
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const onProgress = (current, total) => {
+      res.write(`data: ${JSON.stringify({ type: "progress", current, total })}\n\n`);
+    };
+
+    try {
+      const result = await pdfService.vectorizePDF(
+        chatToken,
+        collection,
+        pdfData,
+        fileName,
+        apiKey,
+        onProgress
+      );
+      res.write(`data: ${JSON.stringify({ type: "complete", ...result })}\n\n`);
+    } catch (err) {
+      console.error("Erro durante vetorização:", err);
+      res.write(`data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`);
+    } finally {
+      res.end();
+    }
+  } catch (error) {
+    if (res.headersSent) {
+      res.end();
+    } else {
+      next(error);
+    }
+  }
+}
+
+// [GET] /api/chat/:chatToken/documents/:collection
+// Lista documentos vetorizados em uma collection
+async function listVectorizedDocuments(req, res, next) {
+  try {
+    const { chatToken, collection } = req.params;
+
+    const documents = await pdfService.listVectorizedDocuments(chatToken, collection);
+    res.status(200).json(documents);
+  } catch (error) {
+    next(error);
+  }
+}
+
+// [DELETE] /api/chat/:chatToken/documents/:collection/:documentId
+// Remove um documento vetorizado (todos os chunks)
+async function deleteVectorizedDocument(req, res, next) {
+  try {
+    const { chatToken, collection, documentId } = req.params;
+
+    const deletedCount = await pdfService.deleteVectorizedDocument(chatToken, collection, documentId);
+    res.status(200).json({
+      message: "Documento removido com sucesso.",
+      deletedChunks: deletedCount
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// [POST] /api/chat/:chatToken/repair-embeddings
+// Repara embeddings zerados (regenera vetores que falharam na criação)
+async function repairEmbeddings(req, res, next) {
+  try {
+    const { chatToken } = req.params;
+
+    console.log(`[Controller] Iniciando reparo de embeddings para chat ${chatToken}...`);
+
+    const result = await chatService.repairEmbeddings(chatToken);
+
+    res.status(200).json({
+      message: "Reparo de embeddings concluído.",
+      ...result
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getAllChats,
   getChatDetails,
@@ -427,5 +538,9 @@ module.exports = {
   getMemoryStats,
   exportMemories,
   importMemories,
-  searchGlobal
+  searchGlobal,
+  vectorizePDF,
+  listVectorizedDocuments,
+  deleteVectorizedDocument,
+  repairEmbeddings
 };

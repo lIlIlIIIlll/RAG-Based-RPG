@@ -96,4 +96,22 @@ router.put("/:chatToken/rename", chatController.renameChat);
 // DELETE /api/chat/:chatToken
 router.delete("/:chatToken", chatController.deleteChat);
 
+// --- Rotas de Vetorização de PDFs ---
+
+// Vetorizar PDF (SSE para progresso)
+// POST /api/chat/:chatToken/vectorize-pdf
+router.post("/:chatToken/vectorize-pdf", chatController.vectorizePDF);
+
+// Listar documentos vetorizados em uma collection
+// GET /api/chat/:chatToken/documents/:collection
+router.get("/:chatToken/documents/:collection", chatController.listVectorizedDocuments);
+
+// Deletar documento vetorizado (todos os chunks)
+// DELETE /api/chat/:chatToken/documents/:collection/:documentId
+router.delete("/:chatToken/documents/:collection/:documentId", chatController.deleteVectorizedDocument);
+
+// Reparar embeddings zerados (regenera vetores que falharam na criação)
+// POST /api/chat/:chatToken/repair-embeddings
+router.post("/:chatToken/repair-embeddings", chatController.repairEmbeddings);
+
 module.exports = router;

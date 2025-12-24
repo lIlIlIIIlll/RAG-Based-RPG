@@ -92,13 +92,32 @@ function convertHistoryToOpenAI(geminiHistory) {
             if (part.text) {
                 content.push({ type: "text", text: part.text });
             } else if (part.inlineData) {
-                // Imagem inline
-                content.push({
-                    type: "image_url",
-                    image_url: {
-                        url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
-                    },
-                });
+                const mimeType = part.inlineData.mimeType;
+                const dataUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+
+                // PDFs usam formato "file" específico do OpenRouter
+                if (mimeType === "application/pdf") {
+                    content.push({
+                        type: "file",
+                        file: {
+                            filename: part._filename || "document.pdf",
+                            file_data: dataUrl,
+                        },
+                    });
+                }
+                // Imagens usam formato "image_url"
+                else if (mimeType.startsWith("image/")) {
+                    content.push({
+                        type: "image_url",
+                        image_url: {
+                            url: dataUrl,
+                        },
+                    });
+                }
+                // Outros tipos multimodais (vídeo, áudio) - fallback genérico
+                else {
+                    console.warn(`[OpenRouter] Tipo de mídia não suportado diretamente: ${mimeType}`);
+                }
             } else if (part.functionCall) {
                 // Tool call do modelo
                 toolCalls.push({

@@ -11,22 +11,70 @@ const config = {
   collectionNames: ["fatos", "historico", "conceitos"],
 
   /**
-   * (Atualmente não usada, mas mantida para futura query generation se quiser)
    * Prompt para o Gemini gerar uma query de busca otimizada (Query Transformation).
    * A variável {context} será substituída pelo histórico da conversa.
+   * 
+   * IMPORTANTE: Prioriza a INTENÇÃO do usuário (perguntas explícitas) sobre o contexto narrativo.
    */
   queryGenerationPrompt: `
-    Você é um especialista em formulação de queries para busca vetorial em sistemas RAG.
-    Sua missão é analisar o histórico recente da conversa e criar uma query de busca que maximize a recuperação de memórias relevantes (fatos, conceitos, histórico passado).
-    A query deve capturar a intenção principal e as entidades-chave da interação atual, considerando tanto o que o usuário disse quanto o contexto fornecido pelas respostas anteriores do modelo.
-    O objetivo é encontrar informações relevantes independente de quem as disse (usuário ou modelo) no passado.
-    Formule a query como uma frase declarativa ou uma lista de conceitos-chave, otimizada para matching semântico.
-    NÃO inclua preâmbulos, explicações ou formatação markdown. Retorne APENAS o texto da query.
+### CONTEXTO TÉCNICO (Como o Sistema Funciona) ###
+Sua saída será convertida em um EMBEDDING (vetor numérico) e comparada com embeddings de memórias armazenadas.
+- **Embeddings medem SIMILARIDADE SEMÂNTICA**, não match exato de palavras
+- Memórias com significado similar terão distância MENOR (mais relevantes)
+- O banco contém 3 coleções:
+  - FATOS: Eventos concretos, nomes, relacionamentos, inventário
+  - CONCEITOS: Lore, magia, cultura, personalidades, world building
+  - HISTÓRICO: Mensagens passadas da conversa
+- As memórias mais próximas serão injetadas no contexto do Mestre de RPG
 
-    Histórico da Conversa:
-    ---
-    {context}
-    ---
+**IMPLICAÇÃO:** Palavras semanticamente ricas (sinônimos, termos relacionados) são MELHORES que palavras literais do texto.
+Exemplo: Para buscar "personalidade de um NPC", use "[Nome] comportamento traços caráter temperamento motivações" ao invés de apenas "[Nome] personalidade".
+
+### INSTRUÇÃO ###
+Você é um analisador de INTENÇÃO para busca vetorial em banco de dados de RPG.
+Sua tarefa é identificar O QUE O USUÁRIO QUER SABER/O QUE É IMPORTANTE PARA A CENA ATUAL e gerar termos de busca para encontrar essa informação.
+
+### PRIORIDADE ABSOLUTA ###
+1. **FOCO NA ÚLTIMA MENSAGEM DO USUÁRIO** - ela contém a intenção atual
+2. **PERGUNTAS EXPLÍCITAS** são A PRIORIDADE MÁXIMA:
+   - Texto entre chaves { } (ex: "{ quem é esse NPC? }")
+   - Perguntas com "como", "quem", "o que", "qual", "onde", "por que"
+   - Frases terminando com ?
+3. O contexto narrativo serve APENAS para identificar nomes/referências, NÃO para gerar palavras-chave
+
+### DETECÇÃO DE TIPO DE BUSCA ###
+- Se a mensagem contém PERGUNTA sobre algo (personalidade, história, habilidades, localização):
+  → Extraia o SUJEITO + ATRIBUTO BUSCADO (ex: "[NomeNPC] personalidade comportamento traços")
+- Se a mensagem contém apenas AÇÃO/NARRAÇÃO do jogador (sem pergunta):
+  → Extraia elementos da cena atual (local, NPCs presentes, objetos relevantes)
+
+### REGRAS DE FORMATO ###
+- Retorne APENAS palavras-chave e nomes próprios
+- NÃO responda ao usuário
+- NÃO use frases completas
+- MÁXIMO 12 palavras
+- Priorize SINÔNIMOS e VARIAÇÕES do que o usuário busca
+
+### EXEMPLOS GENÉRICOS ###
+Histórico: "user: { Pergunta, como é a personalidade desse personagem? }"
+Saída: [NomeDoPersonagem] personalidade comportamento traços caráter temperamento motivações
+
+Histórico: "user: quem é esse cara? model: [narração sobre combate]"
+Saída: [NomeDoNPC] identidade história passado origem objetivo
+
+Histórico: "user: [Personagem] corre em direção à floresta model: [narração]"
+Saída: floresta ambiente vegetação criaturas perigos caminhos
+
+Histórico: "user: o que aconteceu naquele lugar?"
+Saída: [NomeDoLugar] evento história acontecimento passado consequências
+
+Histórico: "user: como funciona essa magia?"
+Saída: [NomeDaMagia] funcionamento regras mecânica efeitos limitações custo
+
+### HISTÓRICO A ANALISAR ###
+{context}
+
+### SAÍDA (palavras-chave semanticamente ricas focadas na INTENÇÃO do usuário) ###
   `,
 
   /**
@@ -54,7 +102,8 @@ Adapte a narrativa com base no engajamento do jogador.
 
 <time_tracking>
 Mantenha sempre um relógio interno do jogo. Tome nota dos dias e horas e use essa métrica ao lidar com Time Skips.
-**OBRIGATÓRIO:** Ao final de cada turno/ação, envie o carimbo de tempo atual no formato: [Dia, Ano, Hora:Minuto].
+**OBRIGATÓRIO:** Ao final de cada turno/ação, envie o carimbo de tempo atual e local atual no formato: [Dia, Ano, Hora:Minuto] - [Local].
+O carimbo deve ser enviado APENAS uma vez, no início de cada narração.
 </time_tracking>
 
 <npc_guidelines>

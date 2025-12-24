@@ -3,9 +3,11 @@ import React, { useRef, useState, useEffect } from "react";
 import Message from "./Message.jsx";
 import LoadingIndicator from "./LoadingIndicator.jsx";
 import FileCard from "./FileCard.jsx";
+import PDFOptionsModal from "./PDFOptionsModal.jsx";
 import { Send, Paperclip, Trash2, X, CheckSquare, Dice6 } from "lucide-react";
 import styles from "./ChatWindow.module.css";
 import { Virtuoso } from "react-virtuoso";
+import { vectorizePDF } from "../services/api.js";
 
 const ChatWindow = ({
     messages,
@@ -26,6 +28,10 @@ const ChatWindow = ({
     const [editingMessageId, setEditingMessageId] = useState(null);
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
+
+    // PDF Options Modal state
+    const [showPdfModal, setShowPdfModal] = useState(false);
+    const [pendingPdf, setPendingPdf] = useState(null);
 
     // Dice command history
     const [diceHistory, setDiceHistory] = useState(() => {
@@ -113,12 +119,59 @@ const ChatWindow = ({
     const handleFileSelect = (e) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files);
-            setSelectedFiles((prev) => [...prev, ...newFiles]);
+
+            // Verifica se há algum PDF nos arquivos selecionados
+            const pdfFile = newFiles.find(f => f.type === "application/pdf");
+
+            if (pdfFile) {
+                // Se tem PDF, abre o modal de opções
+                setPendingPdf(pdfFile);
+                setShowPdfModal(true);
+
+                // Adiciona os outros arquivos (não-PDFs) diretamente
+                const otherFiles = newFiles.filter(f => f.type !== "application/pdf");
+                if (otherFiles.length > 0) {
+                    setSelectedFiles((prev) => [...prev, ...otherFiles]);
+                }
+            } else {
+                // Se não tem PDF, adiciona diretamente
+                setSelectedFiles((prev) => [...prev, ...newFiles]);
+            }
         }
         // Reset input value to allow selecting same file again if needed
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
+    };
+
+    // PDF Modal handlers
+    const handleVectorizePdf = async (collection, onProgress) => {
+        if (!pendingPdf || !chatToken) return;
+
+        // Converte o arquivo para base64
+        const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const base64String = reader.result.split(",")[1];
+                resolve(base64String);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(pendingPdf);
+        });
+
+        const result = await vectorizePDF(chatToken, base64, pendingPdf.name, collection, onProgress);
+        return result;
+    };
+
+    const handleSavePdfAsMedia = () => {
+        if (pendingPdf) {
+            setSelectedFiles((prev) => [...prev, pendingPdf]);
+        }
+    };
+
+    const handleClosePdfModal = () => {
+        setShowPdfModal(false);
+        setPendingPdf(null);
     };
 
     const handleRemoveFile = (index) => {
@@ -211,6 +264,15 @@ const ChatWindow = ({
 
     return (
         <div className={styles.chatWindow}>
+            {/* PDF Options Modal */}
+            <PDFOptionsModal
+                isOpen={showPdfModal}
+                fileName={pendingPdf?.name || ""}
+                onClose={handleClosePdfModal}
+                onVectorize={handleVectorizePdf}
+                onSaveAsMedia={handleSavePdfAsMedia}
+            />
+
             {/* Selection Toolbar */}
             {isSelectionMode && (
                 <div className={styles.selectionToolbar}>

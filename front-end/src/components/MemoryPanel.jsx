@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Search, Plus, Edit2, Save, X, Trash2,
   Database, Brain, History, ChevronRight, ChevronLeft,
-  Download, Upload, FileJson, CheckCircle, AlertCircle, Loader
+  Download, Upload, FileJson, CheckCircle, AlertCircle, Loader,
+  Image, FileText
 } from "lucide-react";
 import { addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories, searchMemory } from "../services/api";
 import { useToast } from "../context/ToastContext";
@@ -43,6 +44,12 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
   const [importCollections, setImportCollections] = useState({});
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+
+  // Estados para Modal de Mídia
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [editingMediaDescription, setEditingMediaDescription] = useState("");
+  const [isSavingMediaDescription, setIsSavingMediaDescription] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -151,6 +158,39 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
       addToast({ type: "error", message: "Erro ao editar memória." });
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  // --- Media Modal Handlers ---
+  const handleOpenMediaModal = (item) => {
+    setSelectedMedia(item);
+    setEditingMediaDescription(item.media?.description || item.text || "");
+    setShowMediaModal(true);
+  };
+
+  const handleSaveMediaDescription = async () => {
+    if (!selectedMedia || !editingMediaDescription.trim()) return;
+
+    setIsSavingMediaDescription(true);
+    try {
+      // Edita o texto da memória (que é usado para busca vetorial)
+      await editMemory(chatToken, selectedMedia.messageid, editingMediaDescription);
+
+      // Atualiza local
+      const update = (list) => list.map(m =>
+        m.messageid === selectedMedia.messageid
+          ? { ...m, text: editingMediaDescription }
+          : m
+      );
+      setLocalVectorMemory(prev => update(prev));
+
+      addToast({ type: "success", message: "Descrição atualizada." });
+      setShowMediaModal(false);
+      setSelectedMedia(null);
+    } catch (err) {
+      addToast({ type: "error", message: "Erro ao salvar descrição." });
+    } finally {
+      setIsSavingMediaDescription(false);
     }
   };
 
@@ -437,6 +477,30 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                           </div>
                         ) : (
                           <>
+                            {/* Thumbnail de mídia se houver */}
+                            {item.hasMedia && item.media && (
+                              <div
+                                className={styles.mediaThumbnail}
+                                onClick={() => handleOpenMediaModal(item)}
+                                title="Clique para ver/editar descrição"
+                              >
+                                {item.media.mimeType?.startsWith("image/") ? (
+                                  <img
+                                    src={`data:${item.media.mimeType};base64,${item.media.data}`}
+                                    alt={item.media.name || "Imagem"}
+                                    className={styles.thumbnailImage}
+                                  />
+                                ) : (
+                                  <div className={styles.pdfThumbnail}>
+                                    <FileText size={24} />
+                                    <span>PDF</span>
+                                  </div>
+                                )}
+                                <div className={styles.thumbnailOverlay}>
+                                  <Edit2 size={14} />
+                                </div>
+                              </div>
+                            )}
                             <p className={styles.memoryText}>{item.text}</p>
                             <div className={styles.memoryMeta}>
                               {item._score != null && (
@@ -448,7 +512,7 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                               {item.messageid && (
                                 <div className={styles.itemActions}>
                                   <button
-                                    onClick={() => startEditing(item)}
+                                    onClick={() => item.hasMedia ? handleOpenMediaModal(item) : startEditing(item)}
                                     className={styles.actionBtn}
                                     title="Editar"
                                   >
@@ -464,6 +528,20 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                                 </div>
                               )}
                             </div>
+
+                            {/* Debug info para calibração do RAG */}
+                            {item.debug && (
+                              <div className={styles.debugInfo}>
+                                <span>Orig: {item.debug.originalDistance?.toFixed(3)}</span>
+                                <span>Final: {item.debug.finalDistance?.toFixed(3)}</span>
+                                {item.debug.adaptiveBoost > 0 && (
+                                  <span className={styles.debugBoost}>+{(item.debug.adaptiveBoost * 100).toFixed(0)}%</span>
+                                )}
+                                {item.debug.hasPenalty && (
+                                  <span className={styles.debugPenalty}>Penalty</span>
+                                )}
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
@@ -693,6 +771,84 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
               >
                 <Upload size={14} />
                 {isImporting ? "Importando..." : "Importar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Preview de Mídia */}
+      {showMediaModal && selectedMedia && (
+        <div className={styles.modalOverlay}>
+          <div className={`${styles.modal} ${styles.mediaModal}`}>
+            <div className={styles.modalHeader}>
+              <h4>
+                <Image size={18} />
+                {selectedMedia.media?.name || "Mídia Recuperada"}
+              </h4>
+              <button
+                onClick={() => {
+                  setShowMediaModal(false);
+                  setSelectedMedia(null);
+                }}
+                className={styles.modalCloseBtn}
+                disabled={isSavingMediaDescription}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className={styles.modalContent}>
+              {/* Preview da mídia */}
+              <div className={styles.mediaPreviewContainer}>
+                {selectedMedia.media?.mimeType?.startsWith("image/") ? (
+                  <img
+                    src={`data:${selectedMedia.media.mimeType};base64,${selectedMedia.media.data}`}
+                    alt={selectedMedia.media.name || "Imagem"}
+                    className={styles.mediaPreviewImage}
+                  />
+                ) : (
+                  <div className={styles.pdfPreview}>
+                    <FileText size={48} />
+                    <span>{selectedMedia.media?.name || "Documento PDF"}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Campo de edição da descrição */}
+              <div className={styles.mediaDescriptionSection}>
+                <label>Descrição para Busca Vetorial:</label>
+                <textarea
+                  className={styles.modalTextarea}
+                  value={editingMediaDescription}
+                  onChange={(e) => setEditingMediaDescription(e.target.value)}
+                  placeholder="Descreva o conteúdo da imagem para melhorar a busca..."
+                  rows={4}
+                />
+                <p className={styles.hint}>
+                  Esta descrição é usada para encontrar esta mídia através da busca vetorial.
+                </p>
+              </div>
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button
+                className={styles.modalCancelBtn}
+                onClick={() => {
+                  setShowMediaModal(false);
+                  setSelectedMedia(null);
+                }}
+                disabled={isSavingMediaDescription}
+              >
+                Cancelar
+              </button>
+              <button
+                className={styles.modalSaveBtn}
+                onClick={handleSaveMediaDescription}
+                disabled={isSavingMediaDescription || !editingMediaDescription.trim()}
+              >
+                <Save size={14} />
+                {isSavingMediaDescription ? "Salvando..." : "Salvar Descrição"}
               </button>
             </div>
           </div>
