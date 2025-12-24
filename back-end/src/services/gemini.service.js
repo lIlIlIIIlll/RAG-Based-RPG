@@ -97,7 +97,7 @@ async function generateEmbedding(text, apiKey) {
 async function generateSearchQuery(contextText, apiKey) {
     try {
         return await retryOperation(async () => {
-            console.log(`[Gemini] Gerando query de busca a partir do contexto...`);
+            console.log(`[Gemini] Gerando queries de busca (DIRETA + NARRATIVA)...`);
 
             const genAI = getClient(apiKey);
 
@@ -121,18 +121,38 @@ async function generateSearchQuery(contextText, apiKey) {
 
             const result = await withTimeout(auxModel.generateContent(prompt), 30000); // 30s timeout
             const response = result.response;
-            const query = response.text();
+            const rawOutput = response.text().trim();
 
-            const trimmedQuery = query.trim();
-            console.log(`[Gemini] Query de busca gerada: "${trimmedQuery}"`);
-            return trimmedQuery;
+            // Parse das duas queries (DIRETA e NARRATIVA)
+            const queries = { direct: '', narrative: '' };
+            const lines = rawOutput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+            for (const line of lines) {
+                if (line.toUpperCase().startsWith('DIRETA:')) {
+                    queries.direct = line.substring(7).trim();
+                } else if (line.toUpperCase().startsWith('NARRATIVA:')) {
+                    queries.narrative = line.substring(10).trim();
+                }
+            }
+
+            // Fallback: se não conseguiu parsear, usa a resposta inteira como query direta
+            if (!queries.direct && !queries.narrative) {
+                console.warn(`[Gemini] Formato inesperado, usando resposta como query direta: "${rawOutput.substring(0, 50)}..."`);
+                queries.direct = rawOutput.substring(0, 100);
+            }
+
+            console.log(`[Gemini] Queries geradas:`);
+            console.log(`  DIRETA: "${queries.direct}"`);
+            console.log(`  NARRATIVA: "${queries.narrative}"`);
+
+            return queries;
         }, "generateSearchQuery");
     } catch (error) {
-        console.error("[Gemini] Erro ao gerar query de busca após retries:", error.message);
-        // Retorna o próprio contexto em caso de erro (fail-safe)
-        // Retorna a última mensagem do usuário como fallback (melhor que o contexto inteiro)
+        console.error("[Gemini] Erro ao gerar queries de busca após retries:", error.message);
+        // Fallback: usa a última mensagem do usuário como query direta
         const lastUserMessage = contextText.split('\n').reverse().find(line => line.startsWith('user:'));
-        return lastUserMessage ? lastUserMessage.replace('user: ', '') : contextText.substring(0, 100);
+        const fallbackQuery = lastUserMessage ? lastUserMessage.replace('user: ', '') : contextText.substring(0, 100);
+        return { direct: fallbackQuery, narrative: '' };
     }
 }
 

@@ -11,70 +11,78 @@ const config = {
   collectionNames: ["fatos", "historico", "conceitos"],
 
   /**
-   * Prompt para o Gemini gerar uma query de busca otimizada (Query Transformation).
+   * Prompt para o Gemini gerar queries de busca otimizadas (Step-Back + GM Mindset).
    * A variável {context} será substituída pelo histórico da conversa.
    * 
-   * IMPORTANTE: Prioriza a INTENÇÃO do usuário (perguntas explícitas) sobre o contexto narrativo.
+   * IMPORTANTE: Gera DUAS queries - uma direta (elementos da cena) e uma narrativa (lore/foreshadowing).
    */
   queryGenerationPrompt: `
-### CONTEXTO TÉCNICO (Como o Sistema Funciona) ###
-Sua saída será convertida em um EMBEDDING (vetor numérico) e comparada com embeddings de memórias armazenadas.
-- **Embeddings medem SIMILARIDADE SEMÂNTICA**, não match exato de palavras
-- Memórias com significado similar terão distância MENOR (mais relevantes)
-- O banco contém 3 coleções:
-  - FATOS: Eventos concretos, nomes, relacionamentos, inventário
-  - CONCEITOS: Lore, magia, cultura, personalidades, world building
-  - HISTÓRICO: Mensagens passadas da conversa
-- As memórias mais próximas serão injetadas no contexto do Mestre de RPG
+### CONTEXTO TÉCNICO ###
+Você gera queries para busca vetorial em banco de dados de RPG.
+Suas saídas serão convertidas em embeddings e comparadas semanticamente com memórias armazenadas.
+- Embeddings medem SIMILARIDADE SEMÂNTICA, não match exato
+- O banco contém: FATOS (eventos, nomes, inventário), CONCEITOS (lore, magia, cultura), HISTÓRICO
 
-**IMPLICAÇÃO:** Palavras semanticamente ricas (sinônimos, termos relacionados) são MELHORES que palavras literais do texto.
-Exemplo: Para buscar "personalidade de um NPC", use "[Nome] comportamento traços caráter temperamento motivações" ao invés de apenas "[Nome] personalidade".
+### SUA TAREFA ###
+Gere DUAS queries de busca distintas:
 
-### INSTRUÇÃO ###
-Você é um analisador de INTENÇÃO para busca vetorial em banco de dados de RPG.
-Sua tarefa é identificar O QUE O USUÁRIO QUER SABER/O QUE É IMPORTANTE PARA A CENA ATUAL e gerar termos de busca para encontrar essa informação.
+**DIRETA:** Elementos CONCRETOS da cena atual
+- NPCs mencionados, locais, objetos, ações
+- Se houver PERGUNTA explícita (entre { } ou com ?), foque nela
+- Extraia SUJEITO + ATRIBUTOS buscados
+- Máximo 10 palavras-chave
 
-### PRIORIDADE ABSOLUTA ###
-1. **FOCO NA ÚLTIMA MENSAGEM DO USUÁRIO** - ela contém a intenção atual
-2. **PERGUNTAS EXPLÍCITAS** são A PRIORIDADE MÁXIMA:
-   - Texto entre chaves { } (ex: "{ quem é esse NPC? }")
-   - Perguntas com "como", "quem", "o que", "qual", "onde", "por que"
-   - Frases terminando com ?
-3. O contexto narrativo serve APENAS para identificar nomes/referências, NÃO para gerar palavras-chave
+**NARRATIVA:** Pense como um Mestre de RPG experiente
+- Que LORE ou WORLD BUILDING está relacionado a este cenário?
+- Que SEGREDOS, REVELAÇÕES ou PLOT HOOKS poderiam surgir aqui?
+- Que CONEXÕES com eventos/NPCs passados seriam interessantes de resgatar?
+- Que informações dariam FORESHADOWING ou BUILD UP para a narrativa?
+- Máximo 10 palavras-chave
 
-### DETECÇÃO DE TIPO DE BUSCA ###
-- Se a mensagem contém PERGUNTA sobre algo (personalidade, história, habilidades, localização):
-  → Extraia o SUJEITO + ATRIBUTO BUSCADO (ex: "[NomeNPC] personalidade comportamento traços")
-- Se a mensagem contém apenas AÇÃO/NARRAÇÃO do jogador (sem pergunta):
-  → Extraia elementos da cena atual (local, NPCs presentes, objetos relevantes)
-
-### REGRAS DE FORMATO ###
+### REGRAS ###
 - Retorne APENAS palavras-chave e nomes próprios
-- NÃO responda ao usuário
 - NÃO use frases completas
-- MÁXIMO 12 palavras
-- Priorize SINÔNIMOS e VARIAÇÕES do que o usuário busca
+- NÃO responda ao usuário
+- Priorize sinônimos e variações semânticas
 
-### EXEMPLOS GENÉRICOS ###
-Histórico: "user: { Pergunta, como é a personalidade desse personagem? }"
-Saída: [NomeDoPersonagem] personalidade comportamento traços caráter temperamento motivações
+### EXEMPLOS ###
 
-Histórico: "user: quem é esse cara? model: [narração sobre combate]"
-Saída: [NomeDoNPC] identidade história passado origem objetivo
+Histórico: "user: Olho as dunas estranhas que vi ao longe"
+Contexto: Deserto de Si Wong, campanha Avatar
 
-Histórico: "user: [Personagem] corre em direção à floresta model: [narração]"
-Saída: floresta ambiente vegetação criaturas perigos caminhos
+DIRETA: dunas estranhas perigo deserto Si Wong formação areia
+NARRATIVA: biblioteca Wan Shi Tong professor Zei conhecimento oculto ruínas enterradas segredos antigos
 
-Histórico: "user: o que aconteceu naquele lugar?"
-Saída: [NomeDoLugar] evento história acontecimento passado consequências
+---
 
-Histórico: "user: como funciona essa magia?"
-Saída: [NomeDaMagia] funcionamento regras mecânica efeitos limitações custo
+Histórico: "user: { quem é esse NPC misterioso? }"
+Contexto: Taverna, encontro com estranho encapuzado
+
+DIRETA: NPC misterioso identidade história passado origem aparência
+NARRATIVA: organização secreta contatos facção inimigos aliados missões passadas intriga
+
+---
+
+Histórico: "model: Role 1d20+2 para percepção. Dificuldade 13."
+Contexto: Algo errado nas dunas
+
+DIRETA: perigo oculto dunas emboscada criatura armadilha
+NARRATIVA: estrutura enterrada ruínas antigas artefato descoberta revelação mistério local
+
+---
+
+Histórico: "user: examino o corpo do assassino"
+Contexto: Após combate na cidade
+
+DIRETA: assassino corpo equipamento identidade marcas veneno
+NARRATIVA: guild assassinos contrato mandante conspiração inimigos políticos vingança
 
 ### HISTÓRICO A ANALISAR ###
 {context}
 
-### SAÍDA (palavras-chave semanticamente ricas focadas na INTENÇÃO do usuário) ###
+### SAÍDA (formato obrigatório) ###
+DIRETA: [palavras-chave da cena]
+NARRATIVA: [palavras-chave de lore/conexões/foreshadowing]
   `,
 
   /**

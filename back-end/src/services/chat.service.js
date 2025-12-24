@@ -309,46 +309,81 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     }
     const recentHistory = historyRecords.slice(startIndex);
 
-    // 4. Gera Query de Busca Otimizada (RAG)
+    // 4. Gera Queries de Busca Otimizadas (RAG - Dual Query: DIRETA + NARRATIVA)
     // Usa o histórico recente para entender o que o usuário quer dizer
-    let searchQuery = userMessage; // Default: usa a mensagem do usuário
+    let searchQueries = { direct: userMessage, narrative: '' }; // Default: usa a mensagem do usuário
 
-    // Constrói contexto de texto para a IA gerar a query
+    // Constrói contexto de texto para a IA gerar as queries
     const historyContextText = recentHistory.map(r => `${r.role}: ${r.text}`).join("\n");
 
     if (geminiApiKey) {
         try {
-            searchQuery = await geminiService.generateSearchQuery(historyContextText, geminiApiKey);
+            searchQueries = await geminiService.generateSearchQuery(historyContextText, geminiApiKey);
         } catch (e) {
-            console.warn("[Service] Falha ao gerar query de busca, usando mensagem original:", e);
+            console.warn("[Service] Falha ao gerar queries de busca, usando mensagem original:", e);
         }
     }
 
-    // 5. Recupera Memória (RAG) usando a Query Gerada
-    // Busca em TODAS as coleções, mistura, ordena por relevância e limita por palavras (15k)
+    // 5. Recupera Memória (RAG) usando as Queries Geradas (DIRETA + NARRATIVA)
+    // Busca em TODAS as coleções, mistura, ordena por relevância e limita por palavras
     let contextText = "";
     let displayMemory = [];
     let uniqueResults = []; // Para uso nas tools
 
-    if (searchQuery && searchQuery.trim().length > 0) {
-        console.log(`[Service] Buscando memórias com query: "${searchQuery}"`);
+    // Fallback para garantir que collectionNames exista
+    const collectionsToSearch = config.collectionNames || ["historico", "fatos", "conceitos"];
+    let allMemories = [];
 
-        let allMemories = [];
-        // Busca em todas as coleções configuradas
-        // Fallback para garantir que collectionNames exista
-        const collectionsToSearch = config.collectionNames || ["historico", "fatos", "conceitos"];
+    // === BUSCA COM QUERY DIRETA (peso maior - elementos da cena) ===
+    if (searchQueries.direct && searchQueries.direct.trim().length > 0) {
+        console.log(`[Service] Buscando com QUERY DIRETA: "${searchQueries.direct}"`);
 
         for (const collectionName of collectionsToSearch) {
             try {
-                // Busca um número maior de candidatos para filtrar depois (100 por tabela)
-                const results = await searchMessages(chatToken, collectionName, searchQuery, 100, geminiApiKey);
-                // Adiciona a categoria ao objeto para referência futura
-                const resultsWithCategory = results.map(r => ({ ...r, category: collectionName }));
-                allMemories = allMemories.concat(resultsWithCategory);
+                // Busca um número maior de candidatos para filtrar depois
+                const results = await searchMessages(chatToken, collectionName, searchQueries.direct, 80, geminiApiKey);
+                // Adiciona a categoria e tipo de query ao objeto
+                const resultsWithMeta = results.map(r => ({
+                    ...r,
+                    category: collectionName,
+                    _queryType: 'direct'
+                }));
+                allMemories = allMemories.concat(resultsWithMeta);
             } catch (err) {
-                console.warn(`[Service] Erro ao buscar em ${collectionName}:`, err);
+                console.warn(`[Service] Erro ao buscar em ${collectionName} (DIRETA):`, err);
             }
         }
+    }
+
+    // === BUSCA COM QUERY NARRATIVA (foreshadowing/lore com quota garantida) ===
+    if (searchQueries.narrative && searchQueries.narrative.trim().length > 0) {
+        console.log(`[Service] Buscando com QUERY NARRATIVA: "${searchQueries.narrative}"`);
+
+        // Foca em conceitos e fatos (lore, world building) - pula histórico
+        const narrativeCollections = ['conceitos', 'fatos'];
+
+        for (const collectionName of narrativeCollections) {
+            try {
+                const results = await searchMessages(chatToken, collectionName, searchQueries.narrative, 50, geminiApiKey);
+                // Marca como narrativa para o sistema de quotas (sem penalidade de distância)
+                const resultsWithMeta = results.map(r => ({
+                    ...r,
+                    category: collectionName,
+                    _queryType: 'narrative'
+                }));
+                allMemories = allMemories.concat(resultsWithMeta);
+            } catch (err) {
+                console.warn(`[Service] Erro ao buscar em ${collectionName} (NARRATIVA):`, err);
+            }
+        }
+    }
+
+    // Log de estatísticas das buscas
+    const directCount = allMemories.filter(m => m._queryType === 'direct').length;
+    const narrativeCount = allMemories.filter(m => m._queryType === 'narrative').length;
+    console.log(`[Service] Buscas concluídas: ${directCount} resultados DIRETOS, ${narrativeCount} resultados NARRATIVOS`);
+
+    if (allMemories.length > 0) {
 
         // === BIAS ADAPTATIVO PARA FATOS E CONCEITOS ===
         // RELEVANCE_THRESHOLD: Memórias com distância abaixo desse valor recebem boost
@@ -391,26 +426,49 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
         const recentHistoryIds = new Set(recentHistory.map(r => r.messageid));
         const seenIds = new Set();
 
-        let currentWordCount = 0;
+        // === QUOTA-BASED FUSION ===
+        // Garante diversidade reservando espaço para resultados narrativos
         const WORD_LIMIT = 5000;
+        const NARRATIVE_QUOTA_WORDS = 1500; // Reserva ~30% do espaço para narrativa
 
-        for (const memory of allMemories) {
-            // 1. Deduplicação de IDs (caso a mesma memória venha de múltiplas buscas - improvável mas seguro)
+        let currentWordCount = 0;
+        let narrativeWordCount = 0;
+
+        // Separa resultados por tipo
+        const directResults = allMemories.filter(m => m._queryType === 'direct');
+        const narrativeResults = allMemories.filter(m => m._queryType === 'narrative');
+
+        // Primeiro: preenche quota narrativa (foreshadowing garantido)
+        for (const memory of narrativeResults) {
             if (seenIds.has(memory.messageid)) continue;
-
-            // 2. Evita duplicar o que já está no histórico recente do chat
             if (recentHistoryIds.has(memory.messageid)) continue;
 
-            // 3. Verifica limite de palavras
             const wordCount = wordCounter(memory.text);
-            if (currentWordCount + wordCount > WORD_LIMIT) {
-                break; // Atingiu o limite
-            }
+            if (narrativeWordCount + wordCount > NARRATIVE_QUOTA_WORDS) continue;
+
+            seenIds.add(memory.messageid);
+            uniqueResults.push(memory);
+            narrativeWordCount += wordCount;
+            currentWordCount += wordCount;
+        }
+
+        // Segundo: preenche o resto com resultados diretos (ordenados por distância)
+        for (const memory of directResults) {
+            if (seenIds.has(memory.messageid)) continue;
+            if (recentHistoryIds.has(memory.messageid)) continue;
+
+            const wordCount = wordCounter(memory.text);
+            if (currentWordCount + wordCount > WORD_LIMIT) break;
 
             seenIds.add(memory.messageid);
             uniqueResults.push(memory);
             currentWordCount += wordCount;
         }
+
+        // Log de diversidade
+        const finalDirect = uniqueResults.filter(m => m._queryType === 'direct').length;
+        const finalNarrative = uniqueResults.filter(m => m._queryType === 'narrative').length;
+        console.log(`[Service] Fusão com quotas: ${finalDirect} DIRETOS (~${currentWordCount - narrativeWordCount} palavras), ${finalNarrative} NARRATIVOS (~${narrativeWordCount} palavras)`);
 
         if (uniqueResults.length > 0) {
             // Coleta mídia recuperada do RAG para injeção no contexto
@@ -496,7 +554,8 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
                         originalDistance: m._originalDistance || m._distance,
                         finalDistance: m._distance,
                         adaptiveBoost: m._adaptiveBoost || 0,
-                        hasPenalty: m.category === 'historico'
+                        hasPenalty: m.category === 'historico',
+                        queryType: m._queryType || 'direct' // 'direct' ou 'narrative'
                     }
                 };
             });
