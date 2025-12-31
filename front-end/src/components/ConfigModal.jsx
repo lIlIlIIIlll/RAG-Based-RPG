@@ -1,6 +1,6 @@
 // src/components/ConfigModal/ConfigModal.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Save, ExternalLink, Check, AlertCircle, Zap, Search, Key, Settings, Cpu } from "lucide-react";
+import { X, Save, ExternalLink, Check, AlertCircle, Zap, Search, Key, Settings, Cpu, Wrench } from "lucide-react";
 import { apiClient, updateChatConfig } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import styles from "./ConfigModal.module.css";
@@ -46,7 +46,6 @@ const ConfigModal = ({ chatToken, onClose }) => {
     modelName: "google/gemini-2.5-pro-preview",
     temperature: 0.7,
     systemInstruction: "",
-    geminiApiKey: "",
     openrouterApiKey: "",
     // Google Provider fields
     provider: "openrouter",
@@ -56,6 +55,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [allModels, setAllModels] = useState([]);
   const [filteredModels, setFilteredModels] = useState([]);
@@ -163,7 +163,6 @@ const ConfigModal = ({ chatToken, onClose }) => {
           modelName: currentConfig.modelName || "google/gemini-2.5-pro-preview",
           temperature: currentConfig.temperature ?? 0.7,
           systemInstruction: currentConfig.systemInstruction || "",
-          geminiApiKey: currentConfig.geminiApiKey || "",
           openrouterApiKey: currentConfig.openrouterApiKey || "",
           // Google Provider fields
           provider: currentConfig.provider || "openrouter",
@@ -233,6 +232,36 @@ const ConfigModal = ({ chatToken, onClose }) => {
       addToast({ type: "error", message: "Erro ao salvar configurações." });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRepairMemories = async () => {
+    setIsRepairing(true);
+    try {
+      const response = await apiClient.post(`/chat/${chatToken}/repair-embeddings`);
+      const result = response.data;
+
+      if (result.repaired > 0) {
+        addToast({
+          type: "success",
+          message: `${result.repaired} memória(s) reparada(s) com sucesso!`
+        });
+      } else if (result.failed > 0) {
+        addToast({
+          type: "warning",
+          message: `⚠️ Nenhuma memória reparada. ${result.failed} falha(s).`
+        });
+      } else {
+        addToast({
+          type: "info",
+          message: "✓ Todas as memórias já estão OK!"
+        });
+      }
+    } catch (error) {
+      console.error("[Repair] Error:", error);
+      addToast({ type: "error", message: "Erro ao reparar memórias: " + (error.response?.data?.error || error.message) });
+    } finally {
+      setIsRepairing(false);
     }
   };
 
@@ -413,7 +442,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
                     className={styles.apiKeysTextarea}
                   />
                   <span className={styles.hint}>
-                    ⚡ Keys rotacionam automaticamente quando atingem o limite diário (20 requests/dia).
+                    ⚡ A primeira key é usada para embeddings/RAG. Keys rotacionam quando atingem o limite diário.
                   </span>
                 </div>
 
@@ -459,19 +488,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
             </div>
           )}
 
-          {/* API Key do Gemini (apenas embeddings) */}
-          <div className={styles.field}>
-            <label>Gemini API Key (Embeddings)</label>
-            <input
-              type="password"
-              value={config.geminiApiKey || ""}
-              onChange={(e) => setConfig({ ...config, geminiApiKey: e.target.value })}
-              placeholder="Cole sua API Key do Gemini aqui..."
-            />
-            <span className={styles.hint}>
-              Necessária para busca semântica e memória vetorial.
-            </span>
-          </div>
+
 
           <div className={styles.field}>
             <label>Temperatura ({config.temperature})</label>
@@ -518,13 +535,24 @@ const ConfigModal = ({ chatToken, onClose }) => {
         </div>
 
         <div className={styles.footer}>
-          <button onClick={onClose} className={styles.cancelBtn} disabled={saving}>
-            Cancelar
+          <button
+            onClick={handleRepairMemories}
+            className={styles.repairBtn}
+            disabled={isRepairing || saving}
+            title="Repara memórias com embeddings zerados"
+          >
+            <Wrench size={16} />
+            {isRepairing ? "Reparando..." : "Reparar Memórias"}
           </button>
-          <button onClick={handleSave} className={styles.saveBtn} disabled={saving}>
-            <Save size={16} />
-            {saving ? "Salvando..." : "Salvar Alterações"}
-          </button>
+          <div className={styles.footerButtons}>
+            <button onClick={onClose} className={styles.cancelBtn} disabled={saving}>
+              Cancelar
+            </button>
+            <button onClick={handleSave} className={styles.saveBtn} disabled={saving}>
+              <Save size={16} />
+              {saving ? "Salvando..." : "Salvar Alterações"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

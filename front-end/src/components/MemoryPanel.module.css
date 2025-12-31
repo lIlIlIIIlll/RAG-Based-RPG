@@ -517,6 +517,25 @@
   border-color: rgba(255, 255, 255, 0.15);
 }
 
+.actionBtnHeader:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actionBtnHeader.spinning svg {
+  animation: spinSimple 1s linear infinite;
+}
+
+@keyframes spinSimple {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* --- MODAL ENHANCED --- */
 .modalContent {
   display: flex;

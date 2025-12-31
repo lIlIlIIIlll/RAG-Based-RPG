@@ -134,15 +134,29 @@ async function addMessage(req, res, next) {
       return res.status(400).json({ error: "O campo 'text' é obrigatório." });
     }
 
-    const messageid = await chatService.addMessage(
+    // Busca as API Keys dos metadados do chat para gerar embedding
+    const chatMetadata = await chatService.getChatDetails(chatToken);
+    const apiKeys = chatMetadata?.config?.googleApiKeys || [];
+
+    if (apiKeys.length === 0) {
+      console.warn(`[Controller] addMessage - Nenhuma API key configurada para chat ${chatToken}`);
+    }
+
+    const result = await chatService.addMessage(
       chatToken,
       collectionName,
       text,
-      role || "user"
+      role || "user",
+      [], // attachments
+      apiKeys, // API keys para embedding
+      null, // thoughtSignature
+      {} // options
     );
+
     res.status(201).json({
       message: `Dados inseridos com sucesso na coleção '${collectionName}'.`,
-      messageid,
+      messageid: result.messageid,
+      embeddingStatus: result.embeddingStatus
     });
   } catch (error) {
     next(error);
@@ -202,9 +216,9 @@ async function searchMessages(req, res, next) {
       return res.status(400).json({ error: "O campo 'text' é obrigatório." });
     }
 
-    // Busca a API Key dos metadados do chat
+    // Busca a API Key dos metadados do chat (usa primeira key do Google)
     const chatMetadata = await chatService.getChatDetails(chatToken);
-    const apiKey = chatMetadata?.config?.geminiApiKey;
+    const apiKey = chatMetadata?.config?.googleApiKeys?.[0];
 
     console.log(`[Controller] searchMessages - chatToken: ${chatToken}, hasMetadata: ${!!chatMetadata}, hasConfig: ${!!chatMetadata?.config}, hasApiKey: ${!!apiKey}`);
 
@@ -429,12 +443,12 @@ async function vectorizePDF(req, res, next) {
       return res.status(400).json({ error: "O campo 'collection' é obrigatório (fatos, conceitos, etc)." });
     }
 
-    // Busca API Key dos metadados do chat
+    // Busca API Key dos metadados do chat (usa primeira key do Google)
     const chatMetadata = await chatService.getChatDetails(chatToken);
-    const apiKey = chatMetadata?.config?.geminiApiKey;
+    const apiKey = chatMetadata?.config?.googleApiKeys?.[0];
 
     if (!apiKey) {
-      return res.status(400).json({ error: "API Key do Gemini não configurada." });
+      return res.status(400).json({ error: "API Key do Google não configurada." });
     }
 
     // Configura SSE para progresso
@@ -519,6 +533,18 @@ async function repairEmbeddings(req, res, next) {
   }
 }
 
+// [GET] /api/chat/:chatToken/check-embeddings
+// Verifica quantos embeddings zerados existem (antes de reparar)
+async function checkEmbeddings(req, res, next) {
+  try {
+    const { chatToken } = req.params;
+    const result = await chatService.checkZeroEmbeddings(chatToken);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getAllChats,
   getChatDetails,
@@ -542,5 +568,6 @@ module.exports = {
   vectorizePDF,
   listVectorizedDocuments,
   deleteVectorizedDocument,
+  checkEmbeddings,
   repairEmbeddings
 };

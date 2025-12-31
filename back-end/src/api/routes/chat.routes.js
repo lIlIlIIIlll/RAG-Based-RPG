@@ -110,6 +110,10 @@ router.get("/:chatToken/documents/:collection", chatController.listVectorizedDoc
 // DELETE /api/chat/:chatToken/documents/:collection/:documentId
 router.delete("/:chatToken/documents/:collection/:documentId", chatController.deleteVectorizedDocument);
 
+// Verificar embeddings zerados (conta quantos precisam de reparo)
+// GET /api/chat/:chatToken/check-embeddings
+router.get("/:chatToken/check-embeddings", chatController.checkEmbeddings);
+
 // Reparar embeddings zerados (regenera vetores que falharam na criação)
 // POST /api/chat/:chatToken/repair-embeddings
 router.post("/:chatToken/repair-embeddings", chatController.repairEmbeddings);

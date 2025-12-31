@@ -4,9 +4,9 @@ import {
   Search, Plus, Edit2, Save, X, Trash2,
   Database, Brain, History, ChevronRight, ChevronLeft,
   Download, Upload, FileJson, CheckCircle, AlertCircle, Loader,
-  Image, FileText
+  Image, FileText, Wrench
 } from "lucide-react";
-import { addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories, searchMemory } from "../services/api";
+import { apiClient, addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories, searchMemory } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import { useConfirmation } from "../context/ConfirmationContext";
 import styles from "./MemoryPanel.module.css";
@@ -44,6 +44,7 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
   const [importCollections, setImportCollections] = useState({});
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [isRepairing, setIsRepairing] = useState(false);
 
   // Estados para Modal de Mídia
   const [showMediaModal, setShowMediaModal] = useState(false);
@@ -312,6 +313,38 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
     }
   };
 
+  const handleRepairMemories = async () => {
+    setIsRepairing(true);
+    try {
+      // Primeiro verifica se há embeddings zerados
+      const checkResponse = await apiClient.get(`/chat/${chatToken}/check-embeddings`);
+      const { total, byCollection } = checkResponse.data;
+
+      if (total === 0) {
+        addToast({ type: "info", message: "✓ Todas as memórias já estão OK!" });
+        return;
+      }
+
+      // Mostra quantas precisam de reparo
+      addToast({ type: "info", message: `Reparando ${total} memória(s)...` });
+
+      // Executa o reparo
+      const response = await apiClient.post(`/chat/${chatToken}/repair-embeddings`);
+      const result = response.data;
+
+      if (result.repaired > 0) {
+        addToast({ type: "success", message: `${result.repaired} memória(s) reparada(s)!` });
+      } else if (result.failed > 0) {
+        addToast({ type: "warning", message: `⚠️ Nenhuma reparada. ${result.failed} falha(s).` });
+      }
+    } catch (error) {
+      console.error("[Repair] Error:", error);
+      addToast({ type: "error", message: "Erro: " + (error.response?.data?.error || error.message) });
+    } finally {
+      setIsRepairing(false);
+    }
+  };
+
   // Use search results if available, otherwise filter local memory
   const listToRender = searchResults !== null
     ? searchResults
@@ -358,6 +391,16 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                 title="Exportar memórias"
               >
                 <Download size={14} />
+              </button>
+
+              {/* Botão Repair */}
+              <button
+                className={`${styles.actionBtnHeader} ${isRepairing ? styles.spinning : ''}`}
+                onClick={handleRepairMemories}
+                title="Reparar embeddings zerados"
+                disabled={isRepairing}
+              >
+                {isRepairing ? <Loader size={14} /> : <Wrench size={14} />}
               </button>
 
               {/* Botão de Adicionar (Invisível em Histórico) */}
@@ -460,6 +503,12 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                               className={styles.editInput}
                               value={editingText}
                               onChange={(e) => setEditingText(e.target.value)}
+                              onKeyDown={(e) => {
+                                // Permite Enter para quebra de linha
+                                if (e.key === "Enter") {
+                                  e.stopPropagation();
+                                }
+                              }}
                             />
                             <div className={styles.editButtons}>
                               <button onClick={() => setEditingId(null)} className={styles.actionBtn}>
@@ -822,6 +871,12 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                   className={styles.modalTextarea}
                   value={editingMediaDescription}
                   onChange={(e) => setEditingMediaDescription(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Permite Enter para quebra de linha
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                    }
+                  }}
                   placeholder="Descreva o conteúdo da imagem para melhorar a busca..."
                   rows={4}
                 />

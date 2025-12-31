@@ -644,7 +644,42 @@ module.exports = {
   updateHebbianAssociations,
   applyHebbianBoost,
   applySynapticDecay,
-  // Embedding Repair
+  // Embedding Check & Repair
+  countZeroEmbeddings: async function (chatToken, collections = ['conceitos', 'fatos', 'historico']) {
+    const db = await getDbConnection();
+    let total = 0;
+    const byCollection = {};
+
+    const isZeroVector = (vector) => {
+      if (!vector || !Array.isArray(vector)) return true;
+      const sum = vector.reduce((acc, val) => acc + Math.abs(val), 0);
+      return sum < 0.001;
+    };
+
+    for (const collectionName of collections) {
+      const tableName = `${chatToken}-${collectionName}`;
+      byCollection[collectionName] = 0;
+
+      try {
+        const existingTables = await db.tableNames();
+        if (!existingTables.includes(tableName)) continue;
+
+        const table = await db.openTable(tableName);
+        const allRecords = await table.query().toArray();
+
+        for (const record of allRecords) {
+          if (isZeroVector(record.vector) && record.text?.trim().length > 0) {
+            total++;
+            byCollection[collectionName]++;
+          }
+        }
+      } catch (e) {
+        // Tabela pode não existir
+      }
+    }
+
+    return { total, byCollection };
+  },
   repairZeroEmbeddings: async function (chatToken, generateEmbeddingFn, apiKey, collections = ['conceitos', 'fatos']) {
     const db = await getDbConnection();
     const results = {

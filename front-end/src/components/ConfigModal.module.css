@@ -195,11 +195,43 @@
   padding: 20px 24px;
   border-top: 1px solid var(--border-subtle);
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
   background: rgba(0, 0, 0, 0.2);
   border-bottom-left-radius: 20px;
   border-bottom-right-radius: 20px;
+}
+
+.footerButtons {
+  display: flex;
+  gap: 12px;
+}
+
+.repairBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.repairBtn:hover {
+  background: rgba(255, 215, 0, 0.15);
+  border-color: rgba(255, 215, 0, 0.3);
+  color: var(--accent-primary);
+}
+
+.repairBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .cancelBtn {

@@ -5,7 +5,8 @@ const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@googl
 const config = require("../config");
 
 // --- In-Memory API Key State Management ---
-// Format: { [key]: { cooldownUntil: timestamp, requestCount: number, lastRequestMinute: timestamp } }
+// Format: { [key_modelName]: { cooldownUntil: timestamp, requestCount: number, lastRequestMinute: timestamp } }
+// Cooldown is now per-model, so a key in cooldown for one model can still be used for another
 const apiKeyStates = new Map();
 
 // --- Helper Functions ---
@@ -25,50 +26,65 @@ const withTimeout = (promise, ms) => {
 };
 
 /**
- * Initializes or gets the state for an API key.
- * @param {string} key 
+ * Generates a composite key for per-model cooldown tracking.
+ * @param {string} key - API key
+ * @param {string} modelName - Model name
+ * @returns {string}
+ */
+function getCompositeKey(key, modelName) {
+    return `${key}_${modelName}`;
+}
+
+/**
+ * Initializes or gets the state for an API key + model combination.
+ * @param {string} key - API key
+ * @param {string} modelName - Model name
  * @returns {Object}
  */
-function getKeyState(key) {
-    if (!apiKeyStates.has(key)) {
-        apiKeyStates.set(key, {
+function getKeyState(key, modelName) {
+    const compositeKey = getCompositeKey(key, modelName);
+    if (!apiKeyStates.has(compositeKey)) {
+        apiKeyStates.set(compositeKey, {
             cooldownUntil: 0,
             requestCount: 0,
             lastRequestMinute: 0
         });
     }
-    return apiKeyStates.get(key);
+    return apiKeyStates.get(compositeKey);
 }
 
 /**
- * Checks if a key is available (not in cooldown).
- * @param {string} key 
+ * Checks if a key is available for a specific model (not in cooldown).
+ * @param {string} key - API key
+ * @param {string} modelName - Model name
  * @returns {boolean}
  */
-function isKeyAvailable(key) {
-    const state = getKeyState(key);
+function isKeyAvailable(key, modelName) {
+    const state = getKeyState(key, modelName);
     return Date.now() >= state.cooldownUntil;
 }
 
 /**
- * Marks a key as in cooldown for a specified duration.
- * @param {string} key 
+ * Marks a key as in cooldown for a specific model.
+ * @param {string} key - API key
+ * @param {string} modelName - Model name
  * @param {number} durationMs - Cooldown duration in milliseconds
  */
-function markKeyInCooldown(key, durationMs) {
-    const state = getKeyState(key);
+function markKeyInCooldown(key, modelName, durationMs) {
+    const state = getKeyState(key, modelName);
     state.cooldownUntil = Date.now() + durationMs;
-    console.log(`[GoogleProvider] API Key ${key.substring(0, 10)}... marked in cooldown for ${durationMs / 1000 / 60} minutes.`);
+    console.log(`[GoogleProvider] API Key ${key.substring(0, 10)}... marked in cooldown for ${durationMs / 1000 / 60} minutes (model: ${modelName}).`);
 }
 
 /**
- * Selects the next available API key from the list.
- * @param {string[]} apiKeys 
+ * Selects the next available API key from the list for a specific model.
+ * @param {string[]} apiKeys - List of API keys
+ * @param {string} modelName - Model name
  * @returns {string|null}
  */
-function selectAvailableKey(apiKeys) {
+function selectAvailableKey(apiKeys, modelName) {
     for (const key of apiKeys) {
-        if (isKeyAvailable(key)) {
+        if (isKeyAvailable(key, modelName)) {
             return key;
         }
     }
@@ -76,19 +92,21 @@ function selectAvailableKey(apiKeys) {
 }
 
 /**
- * Gets all keys status for debugging/display.
- * @param {string[]} apiKeys 
+ * Gets all keys status for debugging/display for a specific model.
+ * @param {string[]} apiKeys - List of API keys
+ * @param {string} modelName - Model name
  * @returns {Array}
  */
-function getKeysStatus(apiKeys) {
+function getKeysStatus(apiKeys, modelName) {
     return apiKeys.map((key, index) => {
-        const state = getKeyState(key);
-        const isAvailable = isKeyAvailable(key);
+        const state = getKeyState(key, modelName);
+        const isAvailable = isKeyAvailable(key, modelName);
         return {
             index: index + 1,
             keyPrefix: key.substring(0, 10) + "...",
             isAvailable,
-            cooldownRemaining: isAvailable ? 0 : Math.max(0, state.cooldownUntil - Date.now())
+            cooldownRemaining: isAvailable ? 0 : Math.max(0, state.cooldownUntil - Date.now()),
+            modelName
         };
     });
 }
@@ -202,18 +220,18 @@ async function generateChatResponse(
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
     while (true) {
-        const currentKey = selectAvailableKey(apiKeys);
+        const currentKey = selectAvailableKey(apiKeys, modelName);
 
         if (!currentKey) {
             // All keys exhausted
-            const keysStatus = getKeysStatus(apiKeys);
+            const keysStatus = getKeysStatus(apiKeys, modelName);
             const statusText = keysStatus.map(k =>
                 `Key ${k.index}: ${k.isAvailable ? 'disponível' : `cooldown por ${Math.round(k.cooldownRemaining / 1000 / 60)} min`}`
             ).join(", ");
 
-            const error = new Error(`Todas as API Keys do Google estão em cooldown. Status: ${statusText}`);
+            const error = new Error(`Todas as API Keys do Google estão em cooldown para o modelo ${modelName}. Status: ${statusText}`);
             error.errorType = "all_keys_exhausted";
-            error.userMessage = `Todas as ${apiKeys.length} API Keys atingiram o limite diário. Tente novamente amanhã ou adicione mais chaves.`;
+            error.userMessage = `Todas as ${apiKeys.length} API Keys atingiram o limite para o modelo ${modelName}. Tente outro modelo ou aguarde.`;
             error.keysStatus = keysStatus;
             throw error;
         }
@@ -333,7 +351,7 @@ async function generateChatResponse(
             // Check if this is a daily quota error (should rotate key)
             if (isDailyQuotaError(error)) {
                 console.warn(`[GoogleProvider] Quota diária excedida para key ${currentKey.substring(0, 10)}... Marcando em cooldown de 24h.`);
-                markKeyInCooldown(currentKey, ONE_DAY_MS);
+                markKeyInCooldown(currentKey, modelName, ONE_DAY_MS);
                 // Continue to try next key
                 continue;
             }

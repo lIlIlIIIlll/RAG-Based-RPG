@@ -5,7 +5,7 @@ const config = require("./config");
 const port = config.port;
 
 // Inicia o servidor e o faz escutar na porta definida
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log("======================================================");
   console.log(`  🚀 Servidor modularizado rodando com sucesso!`);
   console.log(`     Ouvindo em http://localhost:${port}`);
