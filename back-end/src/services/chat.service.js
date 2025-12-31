@@ -874,20 +874,37 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
         });
     }
 
-    // 7. System Instruction Dinﾃ｢mico
+    // 7. System Instruction Dinâmico (Two-Stage Memory Contextualization)
     let finalSystemInstruction = systemInstruction;
 
-    // Verifica se o template tem o placeholder. Se nﾃ｣o tiver, faz append como fallback.
+    // Etapa 1: Se temos memórias recuperadas, contextualiza-as antes de injetar
     if (contextText) {
+        let contextualizedText = contextText; // fallback: memórias brutas
+
+        if (googleApiKeys && googleApiKeys.length > 0) {
+            try {
+                console.log(`[Service] Etapa 1: Contextualizando ${uniqueResults.length} memórias recuperadas...`);
+                contextualizedText = await geminiService.generateContextSummary(
+                    historyContextText,
+                    contextText,
+                    googleApiKeys
+                );
+                console.log(`[Service] Contexto gerado com sucesso (${contextualizedText.length} chars).`);
+            } catch (e) {
+                console.warn("[Service] Falha ao contextualizar memórias, usando formato bruto:", e.message);
+            }
+        }
+
+        // Etapa 2: Injeta o texto contextualizado nas system instructions
         if (finalSystemInstruction.includes("{vector_memory}")) {
-            finalSystemInstruction = finalSystemInstruction.replace("{vector_memory}", contextText);
+            finalSystemInstruction = finalSystemInstruction.replace("{vector_memory}", contextualizedText);
         } else {
-            // Fallback para templates antigos que nﾃ｣o tenham a tag
-            finalSystemInstruction += "\n\n<retrieved_context>\n" + contextText + "\n</retrieved_context>";
+            // Fallback para templates antigos que não tenham a tag
+            finalSystemInstruction += "\n\n<retrieved_context>\n" + contextualizedText + "\n</retrieved_context>";
         }
     } else {
-        // Limpa o placeholder se nﾃ｣o houver memﾃｳria
-        finalSystemInstruction = finalSystemInstruction.replace("{vector_memory}", "Nenhuma memﾃｳria relevante encontrada.");
+        // Limpa o placeholder se não houver memória
+        finalSystemInstruction = finalSystemInstruction.replace("{vector_memory}", "Nenhuma memória relevante encontrada.");
     }
 
     // 8. Chama Gemini com Tools

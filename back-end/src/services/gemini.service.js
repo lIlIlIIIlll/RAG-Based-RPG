@@ -21,7 +21,8 @@ const withTimeout = (promise, ms) => {
 };
 
 /**
- * Executa uma operação com retry exponencial.
+ * Executa uma operação com retry exponencial (logs silenciosos).
+ * Faz as tentativas silenciosamente e só loga um resumo no final.
  * @param {Function} operation - A função a ser executada.
  * @param {string} operationName - Nome da operação para logs.
  * @param {number} maxRetries - Número máximo de tentativas.
@@ -29,19 +30,29 @@ const withTimeout = (promise, ms) => {
  */
 async function retryOperation(operation, operationName, maxRetries = 5) {
     let attempt = 0;
+    const errors = []; // Acumula erros para resumo
+
     while (attempt < maxRetries) {
         try {
-            return await operation();
+            const result = await operation();
+            // Sucesso: loga resumo apenas se houve retries
+            if (attempt > 0) {
+                console.log(`[Gemini] ✓ ${operationName} OK após ${attempt + 1} tentativas`);
+            }
+            return result;
         } catch (error) {
             attempt++;
+            errors.push({ attempt, message: error.message });
+
             if (attempt >= maxRetries) {
+                // Falha total: loga resumo das tentativas
+                console.error(`[Gemini] ✗ ${operationName} FALHOU após ${maxRetries} tentativas:`);
+                errors.forEach(e => console.error(`  └─ Tentativa ${e.attempt}: ${e.message.substring(0, 80)}${e.message.length > 80 ? '...' : ''}`));
                 throw error;
             }
 
             const isRateLimit = error.message.includes("429") || error.message.includes("Too Many Requests");
-            const delay = isRateLimit ? Math.pow(2, attempt) * 2000 : 1000; // Backoff exponencial agressivo para rate limit (base 2s)
-
-            console.warn(`[Gemini] Erro em ${operationName} (Tentativa ${attempt}/${maxRetries}): ${error.message}. Retentando em ${delay}ms...`);
+            const delay = isRateLimit ? Math.pow(2, attempt) * 2000 : 1000;
             await sleep(delay);
         }
     }
@@ -93,7 +104,7 @@ function isEmbeddingKeyAvailable(key) {
 function markEmbeddingKeyInCooldown(key, durationMs) {
     const state = getEmbeddingKeyState(key);
     state.cooldownUntil = Date.now() + durationMs;
-    console.log(`[Gemini] Embedding API Key ${key.substring(0, 10)}... em cooldown por ${durationMs / 1000 / 60} min.`);
+    // Log silencioso - cooldown será reportado apenas se todas as keys falharem
 }
 
 /**
@@ -210,8 +221,6 @@ async function generateSearchQuery(contextText, apiKeyOrKeys) {
 
         try {
             return await retryOperation(async () => {
-                console.log(`[Gemini] Gerando queries de busca (DIRETA + NARRATIVA)...`);
-
                 const genAI = getClient(currentKey);
 
                 const safetySettings = [
@@ -221,7 +230,6 @@ async function generateSearchQuery(contextText, apiKeyOrKeys) {
                     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
                 ];
 
-                // Usa um modelo leve para tarefas auxiliares
                 const auxModel = genAI.getGenerativeModel({
                     model: "gemini-2.5-flash",
                     safetySettings: safetySettings
@@ -232,11 +240,10 @@ async function generateSearchQuery(contextText, apiKeyOrKeys) {
                     contextText
                 );
 
-                const result = await withTimeout(auxModel.generateContent(prompt), 30000); // 30s timeout
+                const result = await withTimeout(auxModel.generateContent(prompt), 30000);
                 const response = result.response;
                 const rawOutput = response.text().trim();
 
-                // Parse das duas queries (DIRETA e NARRATIVA)
                 const queries = { direct: '', narrative: '' };
                 const lines = rawOutput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
@@ -248,13 +255,12 @@ async function generateSearchQuery(contextText, apiKeyOrKeys) {
                     }
                 }
 
-                // Fallback: se não conseguiu parsear, usa a resposta inteira como query direta
                 if (!queries.direct && !queries.narrative) {
-                    console.warn(`[Gemini] Formato inesperado, usando resposta como query direta: "${rawOutput.substring(0, 50)}..."`);
                     queries.direct = rawOutput.substring(0, 100);
                 }
 
-                console.log(`[Gemini] Queries geradas:`);
+                // Log explícito das queries geradas
+                console.log(`[Gemini] ═══ QUERIES DE BUSCA ═══`);
                 console.log(`  DIRETA: "${queries.direct}"`);
                 console.log(`  NARRATIVA: "${queries.narrative}"`);
 
@@ -293,8 +299,6 @@ async function generateSearchQuery(contextText, apiKeyOrKeys) {
  */
 async function describeMediaForRAG(base64Data, mimeType, apiKey) {
     return retryOperation(async () => {
-        console.log(`[Gemini] Gerando descrição para RAG de mídia: ${mimeType}`);
-
         const genAI = getClient(apiKey);
 
         const safetySettings = [
@@ -336,14 +340,102 @@ Se for personagem de RPG/jogo: descreva raça, classe aparente, equipamentos, ca
         ]), 60000); // 60s timeout para imagens/PDFs
 
         const description = result.response.text().trim();
-        console.log(`[Gemini] Descrição gerada (${description.length} chars): "${description.substring(0, 80)}..."`);
-
+        // Log apenas se for útil para debug (>200 chars indica sucesso)
+        if (description.length > 200) {
+            console.log(`[Gemini] ✓ Mídia descrita (${mimeType.split('/')[1]}, ${description.length} chars)`);
+        }
         return description;
-    }, "describeMediaForRAG", 3); // Menos retries para não atrasar muito
+    }, "describeMediaForRAG", 3);
+}
+
+/**
+ * Gera um texto contextualizado a partir das memórias brutas e histórico recente.
+ * Primeira etapa do sistema de duas etapas para melhor qualidade narrativa.
+ * @param {string} historyText - Histórico recente da conversa.
+ * @param {string} memoriesText - Memórias brutas recuperadas do RAG.
+ * @param {string|string[]} apiKeyOrKeys - Uma chave de API ou array de chaves.
+ * @returns {Promise<string>} Texto contextualizado para o narrador.
+ */
+async function generateContextSummary(historyText, memoriesText, apiKeyOrKeys) {
+    // Normalize to array
+    const apiKeys = Array.isArray(apiKeyOrKeys) ? apiKeyOrKeys : [apiKeyOrKeys];
+
+    if (apiKeys.length === 0 || !apiKeys[0]) {
+        throw new Error("API Key do Gemini não fornecida.");
+    }
+
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const ONE_MINUTE_MS = 60 * 1000;
+    let lastError = null;
+
+    // Try each available key
+    for (const currentKey of apiKeys) {
+        if (!isEmbeddingKeyAvailable(currentKey)) {
+            continue; // Skip keys in cooldown (shares state with embeddings)
+        }
+
+        try {
+            return await retryOperation(async () => {
+
+                const genAI = getClient(currentKey);
+
+                const safetySettings = [
+                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                ];
+
+                // Usa modelo leve para tarefas auxiliares
+                const auxModel = genAI.getGenerativeModel({
+                    model: "gemini-3-flash-preview",
+                    safetySettings: safetySettings,
+                    generationConfig: {
+                        temperature: 0.3, // Baixa temperatura para síntese objetiva
+                        maxOutputTokens: 3000, // ~400 palavras
+                    }
+                });
+
+                const prompt = config.memoryContextualizationPrompt
+                    .replace("{history}", historyText)
+                    .replace("{memories}", memoriesText);
+
+                const result = await withTimeout(auxModel.generateContent(prompt), 45000);
+                const response = result.response;
+                const contextText = response.text().trim();
+
+                // Log explícito do contexto sintetizado
+                console.log(`[Gemini] ═══ CONTEXTO SINTETIZADO (${contextText.length} chars) ═══`);
+                console.log(contextText.substring(0, 500) + (contextText.length > 500 ? '...[truncado]' : ''));
+                console.log(`════════════════════════════════════════`);
+
+                return contextText;
+            }, `generateContextSummary(${currentKey.substring(0, 10)}...)`, 3);
+
+        } catch (error) {
+            lastError = error;
+            console.error(`[Gemini] Erro com API Key ${currentKey.substring(0, 10)}...:`, error.message);
+
+            if (isQuotaError(error)) {
+                const isDailyQuota = error.message.includes("daily") || error.message.includes("day");
+                const cooldown = isDailyQuota ? ONE_DAY_MS : ONE_MINUTE_MS;
+                markEmbeddingKeyInCooldown(currentKey, cooldown);
+                // Continue to next key
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    // All keys exhausted - return fallback
+    console.error("[Gemini] Erro ao gerar contexto após tentar todas as keys:", lastError?.message);
+    // Fallback: retorna memórias brutas
+    return memoriesText;
 }
 
 module.exports = {
     generateEmbedding,
     generateSearchQuery,
     describeMediaForRAG,
+    generateContextSummary,
 }; 
