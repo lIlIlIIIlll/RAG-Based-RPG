@@ -241,14 +241,13 @@ async function deleteRecordByMessageId(chatToken, messageid) {
       // Tenta deletar
       await table.delete(`messageid = '${messageid}'`);
 
-      // Verifica se algo foi deletado (LanceDB não retorna count no delete, 
-      // mas se não deu erro, assumimos sucesso se existia antes. 
-      // Para confirmar precisaríamos fazer query antes, mas por performance vamos assumir ok)
-      // Vou adicionar um log de sucesso.
-      console.log(`[LanceDB] Comando de delete executado em ${tableName} para id ${messageid}`);
+      // IMPORTANTE: LanceDB usa tombstones - deletions são marcadas mas não removidas
+      // até que compact() seja chamado. Sem compact, buscas vetoriais ainda retornam 
+      // registros "deletados".
+      await table.compact();
+
+      console.log(`[LanceDB] Deletado e compactado em ${tableName} para id ${messageid}`);
       recordDeleted = true;
-      // Nota: O LanceDB pode não lançar erro se o ID não existir, 
-      // mas percorremos todas as tabelas para garantir.
 
     } catch (error) {
       if (!error.message?.toLowerCase().includes("was not found")) {

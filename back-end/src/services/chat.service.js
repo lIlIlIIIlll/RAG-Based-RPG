@@ -6,6 +6,7 @@ const lanceDBService = require("./lancedb.service");
 const chatStorage = require("./chatStorage.service");
 const geminiService = require("./gemini.service");
 const openrouterService = require("./openrouter.service");
+const cerebrasService = require("./cerebras.service");
 const googleProvider = require("./google.provider");
 const config = require("../config");
 
@@ -456,18 +457,23 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
 
     const {
         openrouterApiKey, modelName, temperature, systemInstruction,
-        provider, googleApiKeys, googleModelName, rateLimits
+        provider, googleApiKeys, googleModelName, rateLimits,
+        cerebrasApiKey, cerebrasModelName
     } = chatMetadata.config;
 
-    // Valida que hﾃ｡ pelo menos uma key do Google para embeddings
+    // Valida que há pelo menos uma key do Google para embeddings
     if (!googleApiKeys || googleApiKeys.length === 0) {
-        throw new Error("API Key do Google nﾃ｣o configurada (necessﾃ｡ria para embeddings).");
+        throw new Error("API Key do Google não configurada (necessária para embeddings).");
     }
 
     // Validate provider-specific keys
     const useGoogleProvider = provider === "google";
-    if (!useGoogleProvider && !openrouterApiKey) {
-        throw new Error("API Key do OpenRouter nﾃ｣o configurada.");
+    const useCerebrasProvider = provider === "cerebras";
+    if (!useGoogleProvider && !useCerebrasProvider && !openrouterApiKey) {
+        throw new Error("API Key do OpenRouter não configurada.");
+    }
+    if (useCerebrasProvider && !cerebrasApiKey) {
+        throw new Error("API Key da Cerebras não configurada.");
     }
 
     // AUTO-REPAIR: Verifica e repara embeddings zerados em background
@@ -978,23 +984,37 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     ];
 
     // 8. Chama Provider com Tools
-    const generationOptions = useGoogleProvider ? {
-        modelName: googleModelName || "gemini-2.5-flash",
-        temperature,
-        tools,
-        apiKeys: googleApiKeys,
-        rateLimits: rateLimits || { rpm: 5, tpm: 250000, rpd: 20 }
-    } : {
-        modelName,
-        temperature,
-        tools,
-        apiKey: openrouterApiKey
-    };
+    let generationOptions;
+    if (useGoogleProvider) {
+        generationOptions = {
+            modelName: googleModelName || "gemini-2.5-flash",
+            temperature,
+            tools,
+            apiKeys: googleApiKeys,
+            rateLimits: rateLimits || { rpm: 5, tpm: 250000, rpd: 20 }
+        };
+    } else if (useCerebrasProvider) {
+        generationOptions = {
+            modelName: cerebrasModelName || "llama-3.3-70b",
+            temperature,
+            tools,
+            apiKey: cerebrasApiKey
+        };
+    } else {
+        generationOptions = {
+            modelName,
+            temperature,
+            tools,
+            apiKey: openrouterApiKey
+        };
+    }
 
-    // Funﾃｧﾃ｣o auxiliar para chamar o provider correto
+    // Função auxiliar para chamar o provider correto
     const generateResponse = async (history, systemInst, options) => {
         if (useGoogleProvider) {
             return await googleProvider.generateChatResponse(history, systemInst, options);
+        } else if (useCerebrasProvider) {
+            return await cerebrasService.generateChatResponse(history, systemInst, options);
         }
         return await openrouterService.generateChatResponse(history, systemInst, options);
     };

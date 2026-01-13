@@ -21,6 +21,16 @@ const GOOGLE_MODELS = [
   { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
 ];
 
+// Modelos disponíveis da Cerebras
+const CEREBRAS_MODELS = [
+  { id: "llama3.1-8b", name: "Llama 3.1 8B (~2200 t/s)" },
+  { id: "llama-3.3-70b", name: "Llama 3.3 70B (~2100 t/s)" },
+  { id: "gpt-oss-120b", name: "GPT OSS 120B (~3000 t/s)" },
+  { id: "qwen-3-32b", name: "Qwen 3 32B (~2600 t/s)" },
+  { id: "zai-glm-4.6", name: "Z.ai GLM 4.6 - Reasoning (~1000 t/s)" },
+  { id: "zai-glm-4.7", name: "Z.ai GLM 4.7 - Reasoning (~1000 t/s)" },
+];
+
 // Gera code_verifier e code_challenge para OAuth PKCE
 async function generatePKCE() {
   const array = new Uint8Array(32);
@@ -52,6 +62,9 @@ const ConfigModal = ({ chatToken, onClose }) => {
     googleApiKeys: [],
     googleModelName: "gemini-2.5-flash",
     rateLimits: { rpm: 5, tpm: 250000, rpd: 20 },
+    // Cerebras Provider fields
+    cerebrasApiKey: "",
+    cerebrasModelName: "llama-3.3-70b",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -169,6 +182,9 @@ const ConfigModal = ({ chatToken, onClose }) => {
           googleApiKeys: googleKeys,
           googleModelName: currentConfig.googleModelName || "gemini-2.5-flash",
           rateLimits: currentConfig.rateLimits || { rpm: 5, tpm: 250000, rpd: 20 },
+          // Cerebras Provider fields
+          cerebrasApiKey: currentConfig.cerebrasApiKey || "",
+          cerebrasModelName: currentConfig.cerebrasModelName || "llama-3.3-70b",
         });
       } catch (error) {
         addToast({ type: "error", message: "Erro ao carregar configurações." });
@@ -269,7 +285,10 @@ const ConfigModal = ({ chatToken, onClose }) => {
 
   const isOpenRouterConnected = !!config.openrouterApiKey;
   const isGoogleConfigured = config.googleApiKeys && config.googleApiKeys.length > 0;
+  const isCerebrasConfigured = !!config.cerebrasApiKey;
   const isGoogleProvider = config.provider === "google";
+  const isCerebrasProvider = config.provider === "cerebras";
+  const isOpenRouterProvider = config.provider === "openrouter";
 
   return (
     <div className={styles.overlay} onClick={handleBackdropClick}>
@@ -291,7 +310,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
             <div className={styles.toggleButtons}>
               <button
                 type="button"
-                className={`${styles.toggleBtn} ${!isGoogleProvider ? styles.toggleActive : ''}`}
+                className={`${styles.toggleBtn} ${isOpenRouterProvider ? styles.toggleActive : ''}`}
                 onClick={() => setConfig({ ...config, provider: "openrouter" })}
               >
                 <Zap size={14} />
@@ -303,13 +322,21 @@ const ConfigModal = ({ chatToken, onClose }) => {
                 onClick={() => setConfig({ ...config, provider: "google" })}
               >
                 <Cpu size={14} />
-                Google Direct
+                Google
+              </button>
+              <button
+                type="button"
+                className={`${styles.toggleBtn} ${isCerebrasProvider ? styles.toggleActive : ''}`}
+                onClick={() => setConfig({ ...config, provider: "cerebras" })}
+              >
+                <Zap size={14} />
+                Cerebras
               </button>
             </div>
           </div>
 
           {/* OpenRouter Section */}
-          {!isGoogleProvider && (
+          {isOpenRouterProvider && (
             <div className={styles.openrouterCard}>
               <div className={styles.cardHeader}>
                 <div className={styles.cardTitle}>
@@ -422,30 +449,6 @@ const ConfigModal = ({ chatToken, onClose }) => {
                   />
                 </div>
 
-                {/* API Keys Textarea */}
-                <div className={styles.modelSection}>
-                  <label>
-                    <Key size={14} />
-                    API Keys (uma por linha)
-                  </label>
-                  <textarea
-                    value={googleApiKeysText}
-                    onChange={(e) => handleGoogleApiKeysChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      // Permite Enter e Shift+Enter para quebra de linha sem propagação
-                      if (e.key === "Enter") {
-                        e.stopPropagation();
-                      }
-                    }}
-                    placeholder={"AIzaSyABC123...\nAIzaSyDEF456...\nAIzaSyGHI789..."}
-                    rows={4}
-                    className={styles.apiKeysTextarea}
-                  />
-                  <span className={styles.hint}>
-                    ⚡ A primeira key é usada para embeddings/RAG. Keys rotacionam quando atingem o limite diário.
-                  </span>
-                </div>
-
                 {/* Rate Limits Config */}
                 <div className={styles.rateLimitsSection}>
                   <label>
@@ -488,7 +491,121 @@ const ConfigModal = ({ chatToken, onClose }) => {
             </div>
           )}
 
+          {/* Cerebras Provider Section */}
+          {isCerebrasProvider && (
+            <div className={styles.openrouterCard}>
+              <div className={styles.cardHeader}>
+                <div className={styles.cardTitle}>
+                  <Zap size={20} className={styles.openrouterIcon} />
+                  <span>Cerebras Inference</span>
+                </div>
+                <div className={`${styles.connectionBadge} ${isCerebrasConfigured ? styles.badgeConnected : styles.badgeDisconnected}`}>
+                  {isCerebrasConfigured ? (
+                    <>
+                      <Check size={14} />
+                      <span>Configurado</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={14} />
+                      <span>Sem API Key</span>
+                    </>
+                  )}
+                </div>
+              </div>
 
+              <div className={styles.cardContent}>
+                {/* Modelo Cerebras */}
+                <div className={styles.modelSection}>
+                  <label>
+                    <Cpu size={14} />
+                    Modelo
+                  </label>
+                  <select
+                    value={config.cerebrasModelName}
+                    onChange={(e) => setConfig({ ...config, cerebrasModelName: e.target.value })}
+                    className={styles.modelInput}
+                  >
+                    {CEREBRAS_MODELS.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className={styles.hint}>
+                    ⚡ Velocidade ultra-rápida: até 3000 tokens/s
+                  </span>
+                </div>
+
+                {/* API Key Cerebras */}
+                <div className={styles.modelSection}>
+                  <label>
+                    <Key size={14} />
+                    API Key Cerebras
+                  </label>
+                  <input
+                    type="password"
+                    value={config.cerebrasApiKey}
+                    onChange={(e) => setConfig({ ...config, cerebrasApiKey: e.target.value })}
+                    placeholder="csk-xxxxxxxxxxxxxxxx"
+                    className={styles.modelInput}
+                  />
+                  <span className={styles.hint}>
+                    <a href="https://cloud.cerebras.ai" target="_blank" rel="noopener noreferrer">
+                      Obter API Key gratuita →
+                    </a>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Google API Keys for Embeddings - Always Visible */}
+          <div className={styles.openrouterCard}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>
+                <Key size={20} className={styles.openrouterIcon} />
+                <span>Google API Keys (Embeddings)</span>
+              </div>
+              <div className={`${styles.connectionBadge} ${isGoogleConfigured ? styles.badgeConnected : styles.badgeDisconnected}`}>
+                {isGoogleConfigured ? (
+                  <>
+                    <Check size={14} />
+                    <span>{config.googleApiKeys.length} key(s)</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={14} />
+                    <span>Obrigatório</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.cardContent}>
+              <div className={styles.modelSection}>
+                <label>
+                  <Key size={14} />
+                  API Keys (uma por linha)
+                </label>
+                <textarea
+                  value={googleApiKeysText}
+                  onChange={(e) => handleGoogleApiKeysChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                    }
+                  }}
+                  placeholder={"AIzaSyABC123...\nAIzaSyDEF456...\nAIzaSyGHI789..."}
+                  rows={3}
+                  className={styles.apiKeysTextarea}
+                />
+                <span className={styles.hint}>
+                  🔑 Usadas para embeddings/RAG (independente do provedor LLM). Keys rotacionam automaticamente.
+                </span>
+              </div>
+            </div>
+          </div>
 
           <div className={styles.field}>
             <label>Temperatura ({config.temperature})</label>
