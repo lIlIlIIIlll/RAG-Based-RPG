@@ -238,15 +238,14 @@ async function deleteRecordByMessageId(chatToken, messageid) {
     try {
       const table = await db.openTable(tableName);
 
-      // Tenta deletar
+      // Tenta deletar - LanceDB usa "soft delete" (tombstones)
       await table.delete(`messageid = '${messageid}'`);
 
-      // IMPORTANTE: LanceDB usa tombstones - deletions são marcadas mas não removidas
-      // até que compact() seja chamado. Sem compact, buscas vetoriais ainda retornam 
-      // registros "deletados".
-      await table.compact();
+      // IMPORTANTE: optimize() compacta a tabela e remove fisicamente os registros
+      // marcados para deleção. Sem isso, buscas vetoriais ainda retornam os registros.
+      await table.optimize();
 
-      console.log(`[LanceDB] Deletado e compactado em ${tableName} para id ${messageid}`);
+      console.log(`[LanceDB] Deletado e otimizado em ${tableName} para id ${messageid}`);
       recordDeleted = true;
 
     } catch (error) {
