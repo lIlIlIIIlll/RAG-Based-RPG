@@ -11,10 +11,168 @@ const cli2apiService = require("./cli2api.service");
 const googleProvider = require("./google.provider");
 const config = require("../config");
 
-// Funﾃｧﾃ｣o auxiliar para contar palavras
+// Função auxiliar para contar palavras
 function wordCounter(text) {
     return text ? text.split(/\s+/).length : 0;
 }
+
+// ============================================
+// SISTEMA DE SESSÕES (~30k tokens por sessão)
+// ============================================
+
+const TOKEN_LIMIT_PER_SESSION = 30000;
+const CHARS_PER_TOKEN = 4; // Heurística padrão para Gemini/OpenAI
+
+/**
+ * Estima o número de tokens de um texto usando heurística ~4 chars/token.
+ * @param {string} text
+ * @returns {number}
+ */
+function estimateTokens(text) {
+    return Math.ceil((text?.length || 0) / CHARS_PER_TOKEN);
+}
+
+/**
+ * Calcula o sessionId correto para uma nova mensagem.
+ * Se a sessão atual ultrapassar o limite de tokens, cria nova sessão.
+ * @param {Object} chatMetadata - Metadados do chat
+ * @param {number} newTextTokens - Tokens do novo texto a ser adicionado
+ * @returns {{ sessionId: string, needsNewSession: boolean, updatedMetadata: Object }}
+ */
+function calculateSessionId(chatMetadata, newTextTokens) {
+    // Inicializa currentSession se não existir (chats antigos)
+    if (!chatMetadata.currentSession) {
+        chatMetadata.currentSession = {
+            id: "session_1",
+            tokenCount: 0,
+            messageCount: 0,
+            startedAt: Date.now()
+        };
+        chatMetadata.sessions = chatMetadata.sessions || {};
+    }
+
+    const currentSession = chatMetadata.currentSession;
+    const projectedTokens = currentSession.tokenCount + newTextTokens;
+
+    // Se ultrapassar limite, cria nova sessão
+    if (projectedTokens > TOKEN_LIMIT_PER_SESSION) {
+        // Extrai número da sessão atual e incrementa
+        const currentNum = parseInt(currentSession.id.replace("session_", ""), 10) || 1;
+        const newSessionId = `session_${currentNum + 1}`;
+
+        console.log(`[Session] Limite de ${TOKEN_LIMIT_PER_SESSION} tokens atingido. Criando nova sessão: ${newSessionId}`);
+
+        // Arquiva sessão anterior (sem resumo ainda - será gerado sob demanda)
+        chatMetadata.sessions[currentSession.id] = {
+            tokenCount: currentSession.tokenCount,
+            messageCount: currentSession.messageCount,
+            startedAt: currentSession.startedAt,
+            endedAt: Date.now(),
+            summary: null // Será preenchido por generateSessionSummary
+        };
+
+        // Cria nova sessão
+        chatMetadata.currentSession = {
+            id: newSessionId,
+            tokenCount: newTextTokens,
+            messageCount: 1,
+            startedAt: Date.now()
+        };
+
+        return { sessionId: newSessionId, needsNewSession: true, updatedMetadata: chatMetadata };
+    }
+
+    // Atualiza contadores da sessão atual
+    currentSession.tokenCount = projectedTokens;
+    currentSession.messageCount += 1;
+
+    return { sessionId: currentSession.id, needsNewSession: false, updatedMetadata: chatMetadata };
+}
+
+/**
+ * Retorna as memórias brutas de uma sessão para inclusão nas system instructions.
+ * @param {string} chatToken
+ * @param {string} sessionId
+ * @returns {Promise<{ sessionId: string, messages: Array, formattedText: string, tokenCount: number, messageCount: number }>}
+ */
+async function getSessionMemories(chatToken, sessionId) {
+    // 1. Busca metadados
+    const metadata = await chatStorage.getChatMetadata(chatToken);
+    if (!metadata) throw new Error("Chat não encontrado");
+
+    // 2. Busca todas as mensagens da sessão
+    const history = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
+    const sessionMessages = history
+        .filter(m => m.sessionId === sessionId)
+        .sort((a, b) => a.createdAt - b.createdAt);
+
+    if (sessionMessages.length === 0) {
+        return {
+            sessionId,
+            messages: [],
+            formattedText: "",
+            tokenCount: 0,
+            messageCount: 0
+        };
+    }
+
+    // 3. Formata para inclusão nas system instructions
+    const formattedText = sessionMessages
+        .map(m => `[${m.role?.toUpperCase() || 'MSG'}]: ${m.text}`)
+        .join("\n\n---\n\n");
+
+    const tokenCount = estimateTokens(formattedText);
+
+    console.log(`[Session] Carregadas ${sessionMessages.length} memórias da ${sessionId} (${tokenCount} tokens)`);
+
+    return {
+        sessionId,
+        messages: sessionMessages,
+        formattedText,
+        tokenCount,
+        messageCount: sessionMessages.length
+    };
+}
+
+/**
+ * Retorna informações de todas as sessões de um chat.
+ * @param {string} chatToken
+ * @returns {Promise<Array<{ id: string, tokenCount: number, messageCount: number, startedAt: number, endedAt?: number }>>}
+ */
+async function getAllSessions(chatToken) {
+    const metadata = await chatStorage.getChatMetadata(chatToken);
+    if (!metadata) throw new Error("Chat não encontrado");
+
+    const sessions = [];
+
+    // Sessões arquivadas
+    if (metadata.sessions) {
+        for (const [id, data] of Object.entries(metadata.sessions)) {
+            sessions.push({
+                id,
+                tokenCount: data.tokenCount || 0,
+                messageCount: data.messageCount || 0,
+                startedAt: data.startedAt,
+                endedAt: data.endedAt,
+                isCurrent: false
+            });
+        }
+    }
+
+    // Sessão atual
+    if (metadata.currentSession) {
+        sessions.push({
+            id: metadata.currentSession.id,
+            tokenCount: metadata.currentSession.tokenCount || 0,
+            messageCount: metadata.currentSession.messageCount || 0,
+            startedAt: metadata.currentSession.startedAt,
+            isCurrent: true
+        });
+    }
+
+    return sessions.sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+}
+
 
 // ============================================
 // SISTEMA DE FILA PERSISTENTE PARA EMBEDDINGS
@@ -223,6 +381,14 @@ async function createChat(userId) {
             googleModelName: "gemini-2.5-flash", // Model name for Google provider
             rateLimits: { rpm: 5, tpm: 250000, rpd: 20 }, // User-configurable rate limits
         },
+        // Session tracking (~30k tokens per session)
+        currentSession: {
+            id: "session_1",
+            tokenCount: 0,
+            messageCount: 0,
+            startedAt: Date.now()
+        },
+        sessions: {} // { sessionId: { summary, tokenCount, messageCount, generatedAt } }
     };
 
     await chatStorage.saveChatMetadata(chatToken, initialMetadata, userId);
@@ -280,13 +446,17 @@ async function deleteChat(chatToken, userId) {
  * @param {string} collectionName
  * @param {string} text
  * @param {string} role
+ * @param {string} sessionId - ID da sessão atual (obrigatório)
  * @param {Array} attachments
  * @param {string|string[]} apiKey - API key ou array de keys para rotação
  * @param {string} thoughtSignature
  * @param {Object} options - { failOnEmbeddingError: boolean }
  * @returns {Promise<{messageid: string, embeddingStatus: 'success'|'pending'|'failed'}>}
  */
-async function addMessage(chatToken, collectionName, text, role, attachments = [], apiKey, thoughtSignature = null, options = {}) {
+async function addMessage(chatToken, collectionName, text, role, sessionId, attachments = [], apiKey, thoughtSignature = null, options = {}) {
+    if (!sessionId) {
+        throw new Error("sessionId is required for addMessage");
+    }
     const { failOnEmbeddingError = false } = options;
 
     // Inicializa com vetor zerado (fallback)
@@ -367,7 +537,8 @@ async function addMessage(chatToken, collectionName, text, role, attachments = [
         role,
         createdAt: Date.now(),
         attachments: JSON.stringify(attachments),
-        thoughtSignature: thoughtSignature
+        thoughtSignature: thoughtSignature,
+        sessionId: sessionId
     };
 
     // Insere no LanceDB
@@ -513,14 +684,23 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
         data: f.buffer.toString("base64")
     }));
 
-    // Validaﾃｧﾃ｣o de tamanho total (limite de 20MB para inline data conforme docs Gemini)
+    // Validação de tamanho total (limite de 20MB para inline data conforme docs Gemini)
     const MAX_INLINE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
     const totalAttachmentSize = files.reduce((sum, f) => sum + f.buffer.length, 0);
     if (totalAttachmentSize > MAX_INLINE_SIZE_BYTES) {
         throw new Error(`Arquivos anexados excedem o limite de 20MB(${(totalAttachmentSize / 1024 / 1024).toFixed(2)}MB enviados).`);
     }
 
-    await addMessage(chatToken, "historico", userMessage, "user", attachments, googleApiKeys);
+    // 2.1 Calcula sessionId baseado nos tokens da mensagem
+    const userMessageTokens = estimateTokens(userMessage);
+    const { sessionId: currentSessionId, updatedMetadata } = calculateSessionId(chatMetadata, userMessageTokens);
+
+    // Salva metadados atualizados (atualiza contadores de sessão)
+    await chatStorage.saveChatMetadata(chatToken, updatedMetadata, chatMetadata.userId);
+
+    console.log(`[Session] Mensagem do usuário (${userMessageTokens} tokens) atribuída à ${currentSessionId}`);
+
+    await addMessage(chatToken, "historico", userMessage, "user", currentSessionId, attachments, googleApiKeys);
 
     // 3. Recupera Histﾃｳrico Recente (Necessﾃ｡rio para gerar a query de busca e para o contexto do chat)
     const historyRecords = await lanceDBService.getAllRecordsFromCollection(chatToken, "historico");
@@ -1078,7 +1258,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
                     }
                     memoryInsertCount++;
 
-                    const msgId = await addMessage(chatToken, "fatos", args.text, "model", [], googleApiKeys);
+                    const msgId = await addMessage(chatToken, "fatos", args.text, "model", currentSessionId, [], googleApiKeys);
                     toolResult = { status: "success", message: "Fato inserido com sucesso." };
 
                     // Adiciona ﾃ memﾃｳria de exibiﾃｧﾃ｣o para atualizaﾃｧﾃ｣o imediata na UI
@@ -1097,7 +1277,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
                     }
                     memoryInsertCount++;
 
-                    const msgId = await addMessage(chatToken, "conceitos", args.text, "model", [], googleApiKeys);
+                    const msgId = await addMessage(chatToken, "conceitos", args.text, "model", currentSessionId, [], googleApiKeys);
                     toolResult = { status: "success", message: "Conceito inserido com sucesso." };
 
                     // Adiciona ﾃ memﾃｳria de exibiﾃｧﾃ｣o para atualizaﾃｧﾃ｣o imediata na UI
@@ -1136,7 +1316,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
                     const modString = modifier ? (modifier > 0 ? `+ ${modifier} ` : `${modifier} `) : '';
                     const resultText = `${count}d${type}${modString} = ${finalTotal} { ${rollString} } `;
 
-                    const rollMsgId = await addMessage(chatToken, "historico", resultText, "model", [], googleApiKeys);
+                    const rollMsgId = await addMessage(chatToken, "historico", resultText, "model", currentSessionId, [], googleApiKeys);
 
                     generatedMessages.push({
                         text: resultText,
@@ -1260,7 +1440,7 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
         }
     }
 
-    const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model", [], googleApiKeys, finalThoughtSignature);
+    const modelMessageId = await addMessage(chatToken, "historico", modelResponse, "model", currentSessionId, [], googleApiKeys, finalThoughtSignature);
 
     generatedMessages.push({
         text: modelResponse,
@@ -1339,13 +1519,21 @@ async function importChat(userId, messages, apiKey, onProgress) {
     let processedCount = 0;
     const totalMessages = messages.length;
 
+    // Carrega metadados para gerenciar sessões durante importação
+    let chatMetadata = await chatStorage.getChatMetadata(chatToken);
+
     for (const msg of messages) {
         // Mapeia os campos do JSON para o formato esperado
         const text = msg.content || msg.text || "";
         const role = msg.role === "model" ? "model" : "user";
 
-        // Adiciona a mensagem
-        await addMessage(chatToken, "historico", text, role, [], apiKey);
+        // Calcula sessionId para esta mensagem
+        const messageTokens = estimateTokens(text);
+        const { sessionId, updatedMetadata } = calculateSessionId(chatMetadata, messageTokens);
+        chatMetadata = updatedMetadata;
+
+        // Adiciona a mensagem com sessionId
+        await addMessage(chatToken, "historico", text, role, sessionId, [], apiKey);
 
         processedCount++;
 
@@ -1357,6 +1545,9 @@ async function importChat(userId, messages, apiKey, onProgress) {
         // Pequeno delay para evitar rate limit do Gemini na geraﾃｧﾃ｣o de embeddings
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
+
+    // Salva metadados finais com contadores de sessão atualizados
+    await chatStorage.saveChatMetadata(chatToken, chatMetadata, userId);
 
     return chatToken;
 }
@@ -1535,6 +1726,9 @@ async function importMemories(chatToken, data, collections, onProgress) {
 
     let processedItems = 0;
 
+    // Variável para rastrear sessão durante importação
+    let importMetadata = { ...chatMetadata };
+
     // Importa cada coleﾃｧﾃ｣o solicitada
     for (const collectionName of collections) {
         if (!data.collections || !data.collections[collectionName]) {
@@ -1551,26 +1745,38 @@ async function importMemories(chatToken, data, collections, onProgress) {
                 const hasValidVector = hasEmbeddings && record.vector && Array.isArray(record.vector) && record.vector.length === config.embeddingDimension;
 
                 if (hasValidVector) {
-                    // Importaﾃｧﾃ｣o rﾃ｡pida: usa o embedding existente
+                    // Calcula sessionId para esta mensagem
+                    const messageTokens = estimateTokens(record.text);
+                    const { sessionId, updatedMetadata } = calculateSessionId(importMetadata, messageTokens);
+                    importMetadata = updatedMetadata;
+
+                    // Importação rápida: usa o embedding existente
                     const messageid = `${uuidv4()} `;
                     const insertRecord = {
                         text: record.text,
                         role: record.role || "model",
                         messageid,
                         createdAt: record.createdAt || Date.now(),
-                        vector: record.vector
+                        vector: record.vector,
+                        sessionId: sessionId
                     };
 
                     await lanceDBService.insertRecord(chatToken, collectionName, insertRecord);
                     stats.embeddingsReused++;
                 } else {
-                    // Importaﾃｧﾃ｣o lenta: gera novo embedding
+                    // Calcula sessionId para esta mensagem
+                    const messageTokens = estimateTokens(record.text);
+                    const { sessionId, updatedMetadata } = calculateSessionId(importMetadata, messageTokens);
+                    importMetadata = updatedMetadata;
+
+                    // Importação lenta: gera novo embedding
                     await addMessage(
                         chatToken,
                         collectionName,
                         record.text,
                         record.role || "model",
-                        [], // Sem anexos na importaﾃｧﾃ｣o
+                        sessionId,
+                        [], // Sem anexos na importação
                         apiKey
                     );
                     stats.embeddingsGenerated++;
@@ -1602,6 +1808,10 @@ async function importMemories(chatToken, data, collections, onProgress) {
     }
 
     console.log(`[Service] Importaﾃｧﾃ｣o concluﾃｭda.Embeddings reutilizados: ${stats.embeddingsReused}, Gerados: ${stats.embeddingsGenerated} `);
+
+    // Salva metadados finais com contadores de sessão atualizados
+    await chatStorage.saveChatMetadata(chatToken, importMetadata, chatMetadata.userId);
+
     return stats;
 }
 
@@ -1762,5 +1972,10 @@ module.exports = {
     searchAllUserChats,
     repairEmbeddings,
     checkZeroEmbeddings,
-    getPendingQueueStatus
+    getPendingQueueStatus,
+    // Session management
+    estimateTokens,
+    calculateSessionId,
+    getSessionMemories,
+    getAllSessions
 };

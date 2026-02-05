@@ -36,6 +36,9 @@ const chatMessageSchema = new Schema([
     // Campos para Frequency Bias (Neuroplasticidade)
     new Field("accessCount", new Float64(), true), // Quantas vezes foi recuperada via RAG
     new Field("lastMessageAccessed", new Float64(), true), // Número da mensagem no último acesso
+
+    // Campo para rastreamento de sessões (~30k tokens por sessão)
+    new Field("sessionId", new Utf8(), true), // Ex: "session_1", "session_2"
 ]);
 
 module.exports = { chatMessageSchema };

@@ -203,6 +203,11 @@ async function updateRecordByMessageId(
             messageid,
             role: oldRecord.role ?? null,
             createdAt: oldRecord.createdAt ?? Date.now(),
+            attachments: oldRecord.attachments ?? null,
+            thoughtSignature: oldRecord.thoughtSignature ?? null,
+            accessCount: oldRecord.accessCount ?? null,
+            lastMessageAccessed: oldRecord.lastMessageAccessed ?? null,
+            sessionId: oldRecord.sessionId ?? null,
           },
         ]);
         console.log(`[LanceDB] Atualização concluída em ${tableName}.`);
