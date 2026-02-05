@@ -31,6 +31,17 @@ const CEREBRAS_MODELS = [
   { id: "zai-glm-4.7", name: "Z.ai GLM 4.7 - Reasoning (~1000 t/s)" },
 ];
 
+// Modelos disponíveis via CLI2API (proxy local)
+const CLI2API_MODELS = [
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+  { id: "gemini-3-pro-preview", name: "Gemini 3 Pro Preview" },
+  { id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
+  { id: "gemini-claude-sonnet-4-5", name: "Claude Sonnet 4.5 (via Gemini)" },
+  { id: "gemini-claude-sonnet-4-5-thinking", name: "Claude Sonnet 4.5 Thinking" },
+  { id: "gemini-claude-opus-4-5-thinking", name: "Claude Opus 4.5 Thinking" },
+];
+
 // Gera code_verifier e code_challenge para OAuth PKCE
 async function generatePKCE() {
   const array = new Uint8Array(32);
@@ -65,6 +76,10 @@ const ConfigModal = ({ chatToken, onClose }) => {
     // Cerebras Provider fields
     cerebrasApiKey: "",
     cerebrasModelName: "llama-3.3-70b",
+    // CLI2API Provider fields
+    cli2apiBaseUrl: "http://localhost:8317",
+    cli2apiApiKey: "batata",
+    cli2apiModelName: "gemini-2.5-pro",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -185,6 +200,10 @@ const ConfigModal = ({ chatToken, onClose }) => {
           // Cerebras Provider fields
           cerebrasApiKey: currentConfig.cerebrasApiKey || "",
           cerebrasModelName: currentConfig.cerebrasModelName || "llama-3.3-70b",
+          // CLI2API Provider fields
+          cli2apiBaseUrl: currentConfig.cli2apiBaseUrl || "http://localhost:8317",
+          cli2apiApiKey: currentConfig.cli2apiApiKey || "batata",
+          cli2apiModelName: currentConfig.cli2apiModelName || "gemini-2.5-pro",
         });
       } catch (error) {
         addToast({ type: "error", message: "Erro ao carregar configurações." });
@@ -289,6 +308,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
   const isGoogleProvider = config.provider === "google";
   const isCerebrasProvider = config.provider === "cerebras";
   const isOpenRouterProvider = config.provider === "openrouter";
+  const isCli2apiProvider = config.provider === "cli2api";
 
   return (
     <div className={styles.overlay} onClick={handleBackdropClick}>
@@ -331,6 +351,14 @@ const ConfigModal = ({ chatToken, onClose }) => {
               >
                 <Zap size={14} />
                 Cerebras
+              </button>
+              <button
+                type="button"
+                className={`${styles.toggleBtn} ${isCli2apiProvider ? styles.toggleActive : ''}`}
+                onClick={() => setConfig({ ...config, provider: "cli2api" })}
+              >
+                <Zap size={14} />
+                CLI2API
               </button>
             </div>
           </div>
@@ -555,6 +583,76 @@ const ConfigModal = ({ chatToken, onClose }) => {
                       Obter API Key gratuita →
                     </a>
                   </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CLI2API Provider Section */}
+          {isCli2apiProvider && (
+            <div className={styles.openrouterCard}>
+              <div className={styles.cardHeader}>
+                <div className={styles.cardTitle}>
+                  <Zap size={20} className={styles.openrouterIcon} />
+                  <span>CLI2API (Proxy Local)</span>
+                </div>
+                <div className={`${styles.connectionBadge} ${styles.badgeConnected}`}>
+                  <Check size={14} />
+                  <span>Local</span>
+                </div>
+              </div>
+
+              <div className={styles.cardContent}>
+                {/* Modelo CLI2API */}
+                <div className={styles.modelSection}>
+                  <label>
+                    <Cpu size={14} />
+                    Modelo
+                  </label>
+                  <select
+                    value={config.cli2apiModelName}
+                    onChange={(e) => setConfig({ ...config, cli2apiModelName: e.target.value })}
+                    className={styles.modelInput}
+                  >
+                    {CLI2API_MODELS.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className={styles.hint}>
+                    🔌 Modelos via proxy local (OAuth do CLI)
+                  </span>
+                </div>
+
+                {/* Base URL */}
+                <div className={styles.modelSection}>
+                  <label>
+                    <Settings size={14} />
+                    Base URL
+                  </label>
+                  <input
+                    type="text"
+                    value={config.cli2apiBaseUrl}
+                    onChange={(e) => setConfig({ ...config, cli2apiBaseUrl: e.target.value })}
+                    placeholder="http://localhost:8317"
+                    className={styles.modelInput}
+                  />
+                </div>
+
+                {/* API Key */}
+                <div className={styles.modelSection}>
+                  <label>
+                    <Key size={14} />
+                    API Key (do config.yaml)
+                  </label>
+                  <input
+                    type="password"
+                    value={config.cli2apiApiKey}
+                    onChange={(e) => setConfig({ ...config, cli2apiApiKey: e.target.value })}
+                    placeholder="batata"
+                    className={styles.modelInput}
+                  />
                 </div>
               </div>
             </div>

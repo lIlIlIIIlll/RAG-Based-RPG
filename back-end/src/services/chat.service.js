@@ -7,6 +7,7 @@ const chatStorage = require("./chatStorage.service");
 const geminiService = require("./gemini.service");
 const openrouterService = require("./openrouter.service");
 const cerebrasService = require("./cerebras.service");
+const cli2apiService = require("./cli2api.service");
 const googleProvider = require("./google.provider");
 const config = require("../config");
 
@@ -469,7 +470,8 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
     // Validate provider-specific keys
     const useGoogleProvider = provider === "google";
     const useCerebrasProvider = provider === "cerebras";
-    if (!useGoogleProvider && !useCerebrasProvider && !openrouterApiKey) {
+    const useCli2apiProvider = provider === "cli2api";
+    if (!useGoogleProvider && !useCerebrasProvider && !useCli2apiProvider && !openrouterApiKey) {
         throw new Error("API Key do OpenRouter não configurada.");
     }
     if (useCerebrasProvider && !cerebrasApiKey) {
@@ -1000,6 +1002,14 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
             tools,
             apiKey: cerebrasApiKey
         };
+    } else if (useCli2apiProvider) {
+        generationOptions = {
+            modelName: chatMetadata.config.cli2apiModelName || "gemini-2.5-pro",
+            temperature,
+            tools,
+            baseUrl: chatMetadata.config.cli2apiBaseUrl || "http://localhost:8317",
+            apiKey: chatMetadata.config.cli2apiApiKey || "batata"
+        };
     } else {
         generationOptions = {
             modelName,
@@ -1015,6 +1025,8 @@ async function handleChatGeneration(chatToken, userMessage, clientVectorMemory, 
             return await googleProvider.generateChatResponse(history, systemInst, options);
         } else if (useCerebrasProvider) {
             return await cerebrasService.generateChatResponse(history, systemInst, options);
+        } else if (useCli2apiProvider) {
+            return await cli2apiService.generateChatResponse(history, systemInst, options);
         }
         return await openrouterService.generateChatResponse(history, systemInst, options);
     };
