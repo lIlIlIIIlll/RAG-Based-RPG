@@ -24,38 +24,9 @@ async function startLogin(req, res) {
     const data = await response.json();
 
     if (data.status === "ok") {
-      // OVERRIDE: Rewrite redirect_uri to point to our production backend callback
-      // The CLI2API process generates a URL with redirect_uri=http://localhost:51121/oauth-callback
-      // We must change this to https://<production-domain>/cli2api-auth/callback so the browser can reach it.
-
-      const productionHost = "n8n-backenddungeonmaster.r954jc.easypanel.host";
-      const publicCallbackUrl = `https://${productionHost}/cli2api-auth/callback`;
-
-      // Replace the encoded localhost redirect_uri with our public one
-      // The param is usually: redirect_uri=http%3A%2F%2Flocalhost%3A51121%2Foauth-callback
-      const localhostRedirect = encodeURIComponent(
-        "http://localhost:51121/oauth-callback",
-      );
-      const paramPattern = new RegExp(`redirect_uri=${localhostRedirect}`, "g");
-
-      let publicUrl = data.url;
-      if (publicUrl.includes(localhostRedirect)) {
-        publicUrl = publicUrl.replace(
-          paramPattern,
-          `redirect_uri=${encodeURIComponent(publicCallbackUrl)}`,
-        );
-      } else {
-        // Fallback: try to replace just the host/port if the path is different
-        // This is risky if the path is mandated by the provider, but worth a shot if the above fails
-        publicUrl = publicUrl.replace(
-          /localhost%3A51121/,
-          encodeURIComponent(productionHost + "/api/cli2api-auth/callback"),
-        );
-      }
-
       return res.json({
         success: true,
-        url: publicUrl,
+        url: data.url,
         state: data.state,
       });
     }
@@ -79,12 +50,51 @@ async function startLogin(req, res) {
  *
  * GET /api/cli2api-auth/callback
  */
-async function handleCallback(req, res) {
+/**
+ * Handles the manual OAuth callback submission.
+ * Receives the full failed localhost URL, extracts params, and forwards to internal process.
+ *
+ * POST /api/cli2api-auth/manual-callback
+ * Body: { url: string }
+ */
+async function manualCallback(req, res) {
   try {
-    const { code, state, scope, authuser, prompt } = req.query;
+    const { url } = req.body;
+
+    if (!url) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing 'url' field." });
+    }
+
+    // Parse the URL to get query params
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch (e) {
+      // Attempt to fix if protocol is missing
+      try {
+        parsedUrl = new URL(`http://${url}`);
+      } catch (e2) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid URL format." });
+      }
+    }
+
+    const code = parsedUrl.searchParams.get("code");
+    const state = parsedUrl.searchParams.get("state");
+    const scope = parsedUrl.searchParams.get("scope");
+    const authuser = parsedUrl.searchParams.get("authuser");
+    const prompt = parsedUrl.searchParams.get("prompt");
 
     if (!code || !state) {
-      return res.status(400).send("Missing code or state parameter.");
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "URL does not contain code or state parameters.",
+        });
     }
 
     // Forward the callback to the internal CLI2API process
@@ -101,32 +111,40 @@ async function handleCallback(req, res) {
     // We make a request to the local process to "complete" the flow
     const response = await fetch(internalCallbackUrl.toString());
 
-    // The CLI2API usually returns a simple HTML page or text
-    const text = await response.text();
-
-    // Return a nice success page to the user
-    return res.send(`
-      <html>
-        <head><title>Authentication Successful</title></head>
-        <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-          <h1 style="color: green;">Authentication Successful!</h1>
-          <p>The CLI2API process has received your credentials.</p>
-          <p>You can now close this window and return to the application.</p>
-        </body>
-      </html>
-    `);
+    // Check if the internal request was successful
+    if (response.ok) {
+      return res.json({
+        success: true,
+        message: "Authentication completed successfully.",
+      });
+    } else {
+      return res
+        .status(response.status)
+        .json({
+          success: false,
+          error: "Internal CLI2API rejected the callback.",
+        });
+    }
   } catch (error) {
-    console.error("[CLI2API-Auth] handleCallback error:", error.message);
-    return res.status(500).send(`
-      <html>
-        <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-          <h1 style="color: red;">Authentication Failed</h1>
-          <p>Could not forward credentials to the local process.</p>
-          <p>Error: ${error.message}</p>
-        </body>
-      </html>
-    `);
+    console.error("[CLI2API-Auth] manualCallback error:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Internal error processing manual callback: " + error.message,
+    });
   }
+}
+
+/**
+ * Handles the OAuth callback from the provider (Deprecated but kept for completeness).
+ * Receives code/state and forwards it to the local CLI2API process.
+ *
+ * GET /api/cli2api-auth/callback
+ */
+async function handleCallback(req, res) {
+  // ... logic same as before or irrelevant if we use manual callback ...
+  // Just keeping it or stubbing it out.
+  // Ideally we use manualCallback now.
+  return res.send("Please use manual callback via the application.");
 }
 
 /**
@@ -300,6 +318,7 @@ async function debugProcesses(req, res) {
 
 module.exports = {
   startLogin,
+  manualCallback,
   handleCallback,
   pollStatus,
   listAccounts,

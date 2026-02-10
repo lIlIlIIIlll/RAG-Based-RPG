@@ -92,6 +92,7 @@ const ConfigModal = ({ chatToken, onClose }) => {
   const [antigravityAccounts, setAntigravityAccounts] = useState([]);
   const [antigravityLoading, setAntigravityLoading] = useState(false);
   const [antigravityLoginState, setAntigravityLoginState] = useState(null); // OAuth state token
+  const [manualLoginUrl, setManualLoginUrl] = useState("");
   const { addToast } = useToast();
 
   // Carrega todos os modelos do OpenRouter
@@ -328,6 +329,27 @@ const ConfigModal = ({ chatToken, onClose }) => {
       loadAntigravityAccounts();
     } catch (err) {
       addToast({ type: "error", message: "Erro ao desconectar: " + err.message });
+    }
+  };
+
+  const handleManualLoginSubmit = async () => {
+    if (!manualLoginUrl.trim()) return;
+
+    setAntigravityLoading(true);
+    try {
+      const { cli2apiManualCallback } = await import("../services/api");
+      const result = await cli2apiManualCallback(manualLoginUrl);
+      if (result.success) {
+        addToast({ type: "success", message: "Login manual realizado com sucesso!" });
+        setManualLoginUrl("");
+        loadAntigravityAccounts();
+      } else {
+        addToast({ type: "error", message: "Falha no login manual: " + result.error });
+      }
+    } catch (err) {
+      addToast({ type: "error", message: "Erro ao processar login manual: " + err.message });
+    } finally {
+      setAntigravityLoading(false);
     }
   };
 
@@ -800,28 +822,38 @@ const ConfigModal = ({ chatToken, onClose }) => {
                         </>
                       )}
                     </button>
-
-                    <button
-                      onClick={loadAntigravityAccounts}
-                      title="Atualizar lista"
-                      style={{
-                        display: 'flex', alignItems: 'center',
-                        padding: '8px', borderRadius: '8px',
-                        background: 'var(--bg-tertiary, #1a1a2e)',
-                        border: '1px solid var(--border-color, #2a2a3e)',
-                        color: 'var(--text-secondary, #aaa)', cursor: 'pointer',
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      <RefreshCw size={14} />
-                    </button>
                   </div>
 
-                  {antigravityLoginState && (
-                    <span className={styles.hint}>
-                      ⏳ Complete o login na aba do navegador. O status será atualizado automaticamente.
-                    </span>
-                  )}
+                  {/* Manual Login Section */}
+                  <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-color, #2a2a3e)', paddingTop: '12px' }}>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', display: 'block', marginBottom: '8px' }}>
+                      Se o login automático falhar (erro localhost), copie a URL de erro e cole abaixo:
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        value={manualLoginUrl}
+                        onChange={(e) => setManualLoginUrl(e.target.value)}
+                        placeholder="Cole a URL completa aqui (http://localhost:51121/...)"
+                        className={styles.modelInput}
+                      />
+                      <button
+                        onClick={handleManualLoginSubmit}
+                        disabled={!manualLoginUrl.trim() || antigravityLoading}
+                        style={{
+                          padding: '8px 12px', borderRadius: '8px',
+                          background: 'var(--bg-tertiary, #1a1a2e)',
+                          border: '1px solid var(--border-color, #2a2a3e)',
+                          color: 'var(--text-primary, #eee)',
+                          cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                        title="Confirmar Login Manual"
+                      >
+                         <Check size={16} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -580,3 +580,10 @@ export const cli2apiLogout = async (name) => {
   );
   return response.data;
 };
+
+export const cli2apiManualCallback = async (url) => {
+  const response = await apiClient.post("/cli2api-auth/manual-callback", {
+    url,
+  });
+  return response.data;
+};

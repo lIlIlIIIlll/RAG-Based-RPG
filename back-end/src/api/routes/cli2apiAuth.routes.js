@@ -12,7 +12,10 @@ router.post("/login", cli2apiAuthController.startLogin);
 // Poll OAuth flow status
 router.get("/status", cli2apiAuthController.pollStatus);
 
-// Handle OAuth callback from provider
+// Handle manual OAuth callback submission
+router.post("/manual-callback", cli2apiAuthController.manualCallback);
+
+// Handle OAuth callback from provider (Legacy/Disabled)
 router.get("/callback", cli2apiAuthController.handleCallback);
 
 // List connected Antigravity accounts
