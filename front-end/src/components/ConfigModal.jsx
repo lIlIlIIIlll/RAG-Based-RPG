@@ -1,7 +1,7 @@
 // src/components/ConfigModal/ConfigModal.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Save, ExternalLink, Check, AlertCircle, Zap, Search, Key, Settings, Cpu, Wrench } from "lucide-react";
-import { apiClient, updateChatConfig } from "../services/api";
+import { X, Save, ExternalLink, Check, AlertCircle, Zap, Search, Key, Settings, Cpu, Wrench, LogIn, LogOut, RefreshCw, Loader2, User } from "lucide-react";
+import { apiClient, updateChatConfig, cli2apiStartLogin, cli2apiPollStatus, cli2apiListAccounts, cli2apiLogout } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import styles from "./ConfigModal.module.css";
 
@@ -40,6 +40,7 @@ const CLI2API_MODELS = [
   { id: "gemini-claude-sonnet-4-5", name: "Claude Sonnet 4.5 (via Gemini)" },
   { id: "gemini-claude-sonnet-4-5-thinking", name: "Claude Sonnet 4.5 Thinking" },
   { id: "gemini-claude-opus-4-5-thinking", name: "Claude Opus 4.5 Thinking" },
+  { id: "gemini-claude-opus-4-6-thinking", name: "Claude Opus 4.6 Thinking" },
 ];
 
 // Gera code_verifier e code_challenge para OAuth PKCE
@@ -77,8 +78,6 @@ const ConfigModal = ({ chatToken, onClose }) => {
     cerebrasApiKey: "",
     cerebrasModelName: "llama-3.3-70b",
     // CLI2API Provider fields
-    cli2apiBaseUrl: "http://localhost:8317",
-    cli2apiApiKey: "batata",
     cli2apiModelName: "gemini-2.5-pro",
   });
   const [loading, setLoading] = useState(true);
@@ -88,7 +87,11 @@ const ConfigModal = ({ chatToken, onClose }) => {
   const [allModels, setAllModels] = useState([]);
   const [filteredModels, setFilteredModels] = useState([]);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [googleApiKeysText, setGoogleApiKeysText] = useState(""); // For textarea
+  const [googleApiKeysText, setGoogleApiKeysText] = useState("");
+  // Antigravity auth state
+  const [antigravityAccounts, setAntigravityAccounts] = useState([]);
+  const [antigravityLoading, setAntigravityLoading] = useState(false);
+  const [antigravityLoginState, setAntigravityLoginState] = useState(null); // OAuth state token
   const { addToast } = useToast();
 
   // Carrega todos os modelos do OpenRouter
@@ -201,8 +204,6 @@ const ConfigModal = ({ chatToken, onClose }) => {
           cerebrasApiKey: currentConfig.cerebrasApiKey || "",
           cerebrasModelName: currentConfig.cerebrasModelName || "llama-3.3-70b",
           // CLI2API Provider fields
-          cli2apiBaseUrl: currentConfig.cli2apiBaseUrl || "http://localhost:8317",
-          cli2apiApiKey: currentConfig.cli2apiApiKey || "batata",
           cli2apiModelName: currentConfig.cli2apiModelName || "gemini-2.5-pro",
         });
       } catch (error) {
@@ -255,6 +256,79 @@ const ConfigModal = ({ chatToken, onClose }) => {
     setGoogleApiKeysText(text);
     const keys = text.split("\n").map(k => k.trim()).filter(k => k.length > 0);
     setConfig({ ...config, googleApiKeys: keys });
+  };
+
+  // ===== Antigravity Auth Handlers =====
+
+  // Load Antigravity accounts when CLI2API provider is selected
+  useEffect(() => {
+    if (config.provider === "cli2api" && !loading) {
+      loadAntigravityAccounts();
+    }
+  }, [config.provider, loading]);
+
+  // Poll OAuth status when login is in progress
+  useEffect(() => {
+    if (!antigravityLoginState) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const result = await cli2apiPollStatus(antigravityLoginState);
+        if (result.status === "ok") {
+          clearInterval(pollInterval);
+          setAntigravityLoginState(null);
+          addToast({ type: "success", message: "Antigravity conectado com sucesso!" });
+          loadAntigravityAccounts();
+        } else if (result.status === "error") {
+          clearInterval(pollInterval);
+          setAntigravityLoginState(null);
+          addToast({ type: "error", message: "Falha na autenticação: " + (result.error || "Erro desconhecido") });
+        }
+        // status === "wait" → keep polling
+      } catch (err) {
+        console.error("[Antigravity] Poll error:", err);
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [antigravityLoginState, addToast]);
+
+  const loadAntigravityAccounts = async () => {
+    setAntigravityLoading(true);
+    try {
+      const result = await cli2apiListAccounts();
+      setAntigravityAccounts(result.accounts || []);
+    } catch (err) {
+      console.warn("[Antigravity] Failed to load accounts:", err);
+      setAntigravityAccounts([]);
+    } finally {
+      setAntigravityLoading(false);
+    }
+  };
+
+  const handleAntigravityLogin = async () => {
+    try {
+      const result = await cli2apiStartLogin();
+      if (result.success && result.url) {
+        setAntigravityLoginState(result.state);
+        window.open(result.url, "_blank");
+        addToast({ type: "info", message: "Complete o login na aba que foi aberta." });
+      } else {
+        addToast({ type: "error", message: "Falha ao iniciar login: " + (result.error || "Erro desconhecido") });
+      }
+    } catch (err) {
+      addToast({ type: "error", message: "Erro ao iniciar login Antigravity: " + err.message });
+    }
+  };
+
+  const handleAntigravityLogout = async (accountName) => {
+    try {
+      await cli2apiLogout(accountName);
+      addToast({ type: "success", message: "Conta desconectada." });
+      loadAntigravityAccounts();
+    } catch (err) {
+      addToast({ type: "error", message: "Erro ao desconectar: " + err.message });
+    }
   };
 
   const handleSave = async () => {
@@ -588,17 +662,26 @@ const ConfigModal = ({ chatToken, onClose }) => {
             </div>
           )}
 
-          {/* CLI2API Provider Section */}
+          {/* CLI2API Provider Section — Antigravity Auth */}
           {isCli2apiProvider && (
             <div className={styles.openrouterCard}>
               <div className={styles.cardHeader}>
                 <div className={styles.cardTitle}>
                   <Zap size={20} className={styles.openrouterIcon} />
-                  <span>CLI2API (Proxy Local)</span>
+                  <span>CLI2API (Antigravity)</span>
                 </div>
-                <div className={`${styles.connectionBadge} ${styles.badgeConnected}`}>
-                  <Check size={14} />
-                  <span>Local</span>
+                <div className={`${styles.connectionBadge} ${antigravityAccounts.length > 0 ? styles.badgeConnected : styles.badgeDisconnected}`}>
+                  {antigravityAccounts.length > 0 ? (
+                    <>
+                      <Check size={14} />
+                      <span>{antigravityAccounts.length} conta(s)</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={14} />
+                      <span>Sem conta</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -621,38 +704,124 @@ const ConfigModal = ({ chatToken, onClose }) => {
                     ))}
                   </select>
                   <span className={styles.hint}>
-                    🔌 Modelos via proxy local (OAuth do CLI)
+                    🔌 Modelos via proxy (OAuth Antigravity)
                   </span>
                 </div>
 
-                {/* Base URL */}
+                {/* Antigravity Accounts */}
                 <div className={styles.modelSection}>
                   <label>
-                    <Settings size={14} />
-                    Base URL
+                    <User size={14} />
+                    Contas Antigravity
                   </label>
-                  <input
-                    type="text"
-                    value={config.cli2apiBaseUrl}
-                    onChange={(e) => setConfig({ ...config, cli2apiBaseUrl: e.target.value })}
-                    placeholder="http://localhost:8317"
-                    className={styles.modelInput}
-                  />
-                </div>
 
-                {/* API Key */}
-                <div className={styles.modelSection}>
-                  <label>
-                    <Key size={14} />
-                    API Key (do config.yaml)
-                  </label>
-                  <input
-                    type="password"
-                    value={config.cli2apiApiKey}
-                    onChange={(e) => setConfig({ ...config, cli2apiApiKey: e.target.value })}
-                    placeholder="batata"
-                    className={styles.modelInput}
-                  />
+                  {antigravityLoading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 0', color: 'var(--text-secondary, #888)' }}>
+                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Carregando contas...</span>
+                    </div>
+                  ) : antigravityAccounts.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {antigravityAccounts.map((account) => (
+                        <div
+                          key={account.name}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            background: 'var(--bg-tertiary, #1a1a2e)',
+                            border: '1px solid var(--border-color, #2a2a3e)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{
+                              width: '8px', height: '8px', borderRadius: '50%',
+                              background: account.status === 'ready' ? '#4ade80' : '#f87171',
+                            }} />
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary, #eee)' }}>
+                                {account.email}
+                              </div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary, #888)' }}>
+                                {account.provider} · {account.status === 'ready' ? 'Ativo' : account.statusMessage || account.status}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleAntigravityLogout(account.name)}
+                            title="Desconectar"
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '4px',
+                              padding: '6px 10px', borderRadius: '6px',
+                              background: 'transparent', border: '1px solid #f8717144',
+                              color: '#f87171', cursor: 'pointer', fontSize: '12px',
+                              transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={(e) => { e.target.style.background = '#f8717122'; }}
+                            onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
+                          >
+                            <LogOut size={12} />
+                            Sair
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '12px 0', color: 'var(--text-secondary, #888)', fontSize: '13px' }}>
+                      Nenhuma conta conectada. Faça login para usar os modelos.
+                    </div>
+                  )}
+
+                  {/* Login / Refresh buttons */}
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <button
+                      onClick={handleAntigravityLogin}
+                      disabled={!!antigravityLoginState}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        padding: '8px 16px', borderRadius: '8px',
+                        background: antigravityLoginState ? '#333' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        border: 'none', color: '#fff', cursor: antigravityLoginState ? 'wait' : 'pointer',
+                        fontSize: '13px', fontWeight: 500, transition: 'all 0.2s',
+                        opacity: antigravityLoginState ? 0.7 : 1,
+                      }}
+                    >
+                      {antigravityLoginState ? (
+                        <>
+                          <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                          Aguardando login...
+                        </>
+                      ) : (
+                        <>
+                          <LogIn size={14} />
+                          Login com Antigravity
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={loadAntigravityAccounts}
+                      title="Atualizar lista"
+                      style={{
+                        display: 'flex', alignItems: 'center',
+                        padding: '8px', borderRadius: '8px',
+                        background: 'var(--bg-tertiary, #1a1a2e)',
+                        border: '1px solid var(--border-color, #2a2a3e)',
+                        color: 'var(--text-secondary, #aaa)', cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  </div>
+
+                  {antigravityLoginState && (
+                    <span className={styles.hint}>
+                      ⏳ Complete o login na aba do navegador. O status será atualizado automaticamente.
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

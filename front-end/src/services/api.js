@@ -25,12 +25,16 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      log("API:INTERCEPTOR", "Sessão expirada ou inválida (401). Redirecionando para login...", "warn");
+      log(
+        "API:INTERCEPTOR",
+        "Sessão expirada ou inválida (401). Redirecionando para login...",
+        "warn",
+      );
       localStorage.removeItem("token");
       window.location.href = "/";
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 // --- Autenticação ---
@@ -49,7 +53,11 @@ export const login = async (email, password) => {
 export const register = async (name, email, password) => {
   const CONTEXT = "API:REGISTER";
   try {
-    const response = await apiClient.post("/auth/register", { name, email, password });
+    const response = await apiClient.post("/auth/register", {
+      name,
+      email,
+      password,
+    });
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha no registro.", "error", error);
@@ -121,7 +129,10 @@ export const searchGlobalChats = async (query, apiKey) => {
   const CONTEXT = "API:SEARCH_GLOBAL";
   try {
     log(CONTEXT, `Buscando em todos os chats: "${query.substring(0, 30)}..."`);
-    const response = await apiClient.post("/chat/search-global", { query, apiKey });
+    const response = await apiClient.post("/chat/search-global", {
+      query,
+      apiKey,
+    });
     log(CONTEXT, `SUCESSO: ${response.data.length} chats encontrados.`);
     return response.data;
   } catch (error) {
@@ -175,7 +186,9 @@ export const updateChatConfig = async (chatToken, config) => {
 export const renameChat = async (chatToken, newTitle) => {
   const CONTEXT = "API:RENAME_CHAT";
   try {
-    const response = await apiClient.put(`/chat/${chatToken}/rename`, { newTitle });
+    const response = await apiClient.put(`/chat/${chatToken}/rename`, {
+      newTitle,
+    });
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao renomear chat.", "error", error);
@@ -192,7 +205,7 @@ export const generateChatResponse = async (
   chatToken,
   message,
   previousVectorMemory,
-  files = []
+  files = [],
 ) => {
   const CONTEXT = "API:GENERATE";
   try {
@@ -200,7 +213,10 @@ export const generateChatResponse = async (
     if (files.length > 0) {
       const formData = new FormData();
       formData.append("message", message);
-      formData.append("previousVectorMemory", JSON.stringify(previousVectorMemory));
+      formData.append(
+        "previousVectorMemory",
+        JSON.stringify(previousVectorMemory),
+      );
       files.forEach((file) => formData.append("files", file));
 
       response = await apiClient.post(`/chat/generate/${chatToken}`, formData, {
@@ -229,7 +245,7 @@ export const addMemory = async (chatToken, collectionName, text) => {
   try {
     const response = await apiClient.post(
       `/chat/insert/${chatToken}/${collectionName}`,
-      { text }
+      { text },
     );
     return response.data;
   } catch (error) {
@@ -246,7 +262,7 @@ export const editMemory = async (chatToken, messageid, newContent) => {
   try {
     const response = await apiClient.put(
       `/chat/edit/${chatToken}/${messageid}`,
-      { newContent }
+      { newContent },
     );
     return response.data;
   } catch (error) {
@@ -270,7 +286,7 @@ export const searchMemory = async (chatToken, collectionName, text) => {
   try {
     const response = await apiClient.post(
       `/chat/search/${chatToken}/${collectionName}`,
-      { text }
+      { text },
     );
     return response.data;
   } catch (error) {
@@ -281,7 +297,10 @@ export const searchMemory = async (chatToken, collectionName, text) => {
 export const deleteMemories = async (chatToken, messageids) => {
   const CONTEXT = "API:DELETE_MEMORIES";
   try {
-    const response = await apiClient.post(`/chat/${chatToken}/memories/delete`, { messageids });
+    const response = await apiClient.post(
+      `/chat/${chatToken}/memories/delete`,
+      { messageids },
+    );
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao deletar memórias.", "error", error);
@@ -292,7 +311,9 @@ export const deleteMemories = async (chatToken, messageids) => {
 export const branchChat = async (chatToken, messageId) => {
   const CONTEXT = "API:BRANCH_CHAT";
   try {
-    const response = await apiClient.post(`/chat/${chatToken}/message/${messageId}/branch`);
+    const response = await apiClient.post(
+      `/chat/${chatToken}/message/${messageId}/branch`,
+    );
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao criar branch do chat.", "error", error);
@@ -313,7 +334,12 @@ export const getMemoryStats = async (chatToken) => {
     const response = await apiClient.get(`/chat/${chatToken}/memories/stats`);
     return response.data;
   } catch (error) {
-    log(CONTEXT, "ERRO: Falha ao obter estatísticas de memórias.", "error", error);
+    log(
+      CONTEXT,
+      "ERRO: Falha ao obter estatísticas de memórias.",
+      "error",
+      error,
+    );
     throw error;
   }
 };
@@ -328,7 +354,9 @@ export const exportMemories = async (chatToken, collections) => {
   const CONTEXT = "API:EXPORT_MEMORIES";
   try {
     const collectionsParam = collections.join(",");
-    const response = await apiClient.get(`/chat/${chatToken}/memories/export?collections=${collectionsParam}`);
+    const response = await apiClient.get(
+      `/chat/${chatToken}/memories/export?collections=${collectionsParam}`,
+    );
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao exportar memórias.", "error", error);
@@ -344,21 +372,29 @@ export const exportMemories = async (chatToken, collections) => {
  * @param {Function} onProgress - Callback de progresso (current, total).
  * @returns {Promise<Object>} - Estatísticas da importação.
  */
-export const importMemories = async (chatToken, data, collections, onProgress) => {
+export const importMemories = async (
+  chatToken,
+  data,
+  collections,
+  onProgress,
+) => {
   const CONTEXT = "API:IMPORT_MEMORIES";
   try {
     log(CONTEXT, "Iniciando importação de memórias...");
 
     // Usa fetch nativo para SSE
     const token = localStorage.getItem("token");
-    const response = await fetch(`${API_BASE_URL}/chat/${chatToken}/memories/import`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ""
+    const response = await fetch(
+      `${API_BASE_URL}/chat/${chatToken}/memories/import`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ data, collections }),
       },
-      body: JSON.stringify({ data, collections })
-    });
+    );
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -369,7 +405,9 @@ export const importMemories = async (chatToken, data, collections, onProgress) =
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n\n").filter(line => line.startsWith("data: "));
+      const lines = chunk
+        .split("\n\n")
+        .filter((line) => line.startsWith("data: "));
 
       for (const line of lines) {
         try {
@@ -409,20 +447,29 @@ export const importMemories = async (chatToken, data, collections, onProgress) =
  * @param {Function} onProgress - Callback de progresso (current, total).
  * @returns {Promise<Object>} - Resultado da vetorização.
  */
-export const vectorizePDF = async (chatToken, pdfData, fileName, collection, onProgress) => {
+export const vectorizePDF = async (
+  chatToken,
+  pdfData,
+  fileName,
+  collection,
+  onProgress,
+) => {
   const CONTEXT = "API:VECTORIZE_PDF";
   try {
     log(CONTEXT, `Iniciando vetorização de: ${fileName}`);
 
     const token = localStorage.getItem("token");
-    const response = await fetch(`${API_BASE_URL}/chat/${chatToken}/vectorize-pdf`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ""
+    const response = await fetch(
+      `${API_BASE_URL}/chat/${chatToken}/vectorize-pdf`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ pdfData, fileName, collection }),
       },
-      body: JSON.stringify({ pdfData, fileName, collection })
-    });
+    );
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -433,7 +480,9 @@ export const vectorizePDF = async (chatToken, pdfData, fileName, collection, onP
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n\n").filter(line => line.startsWith("data: "));
+      const lines = chunk
+        .split("\n\n")
+        .filter((line) => line.startsWith("data: "));
 
       for (const line of lines) {
         try {
@@ -470,7 +519,9 @@ export const vectorizePDF = async (chatToken, pdfData, fileName, collection, onP
 export const listVectorizedDocuments = async (chatToken, collection) => {
   const CONTEXT = "API:LIST_DOCUMENTS";
   try {
-    const response = await apiClient.get(`/chat/${chatToken}/documents/${collection}`);
+    const response = await apiClient.get(
+      `/chat/${chatToken}/documents/${collection}`,
+    );
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao listar documentos.", "error", error);
@@ -485,14 +536,46 @@ export const listVectorizedDocuments = async (chatToken, collection) => {
  * @param {string} documentId - ID do documento.
  * @returns {Promise<Object>} - Resultado da remoção.
  */
-export const deleteVectorizedDocument = async (chatToken, collection, documentId) => {
+export const deleteVectorizedDocument = async (
+  chatToken,
+  collection,
+  documentId,
+) => {
   const CONTEXT = "API:DELETE_DOCUMENT";
   try {
-    const response = await apiClient.delete(`/chat/${chatToken}/documents/${collection}/${documentId}`);
+    const response = await apiClient.delete(
+      `/chat/${chatToken}/documents/${collection}/${documentId}`,
+    );
     log(CONTEXT, `Documento ${documentId} removido.`);
     return response.data;
   } catch (error) {
     log(CONTEXT, "ERRO: Falha ao deletar documento.", "error", error);
     throw error;
   }
+};
+
+// --- CLI2API Antigravity Auth ---
+
+export const cli2apiStartLogin = async () => {
+  const response = await apiClient.post("/cli2api-auth/login");
+  return response.data;
+};
+
+export const cli2apiPollStatus = async (state) => {
+  const response = await apiClient.get(
+    `/cli2api-auth/status?state=${encodeURIComponent(state)}`,
+  );
+  return response.data;
+};
+
+export const cli2apiListAccounts = async () => {
+  const response = await apiClient.get("/cli2api-auth/accounts");
+  return response.data;
+};
+
+export const cli2apiLogout = async (name) => {
+  const response = await apiClient.delete(
+    `/cli2api-auth/logout?name=${encodeURIComponent(name)}`,
+  );
+  return response.data;
 };

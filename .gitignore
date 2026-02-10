@@ -1,3 +1,28 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# Agent / AI docs
 /docsForAi
 
-/node_modules/
+# CLI2API binary distributions (not part of source code)
+/CLIProxyAPI_*/
+/Cli2APi/
+
+# Docker source code (separate from monorepo)
+/SourceCode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log

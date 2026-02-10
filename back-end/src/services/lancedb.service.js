@@ -45,18 +45,15 @@ async function initializeCollections(chatToken) {
         replace: true,
       });
       console.log(
-        `[LanceDB] Índice B-Tree em 'messageid' para '${tableName}' criado.`
+        `[LanceDB] Índice B-Tree em 'messageid' para '${tableName}' criado.`,
       );
     } catch (e) {
       if (e.message?.toLowerCase().includes("already exists")) {
         console.log(
-          `[LanceDB] Tabela '${tableName}' já existe. Pulando criação.`
+          `[LanceDB] Tabela '${tableName}' já existe. Pulando criação.`,
         );
       } else {
-        console.error(
-          `[LanceDB] Erro ao criar tabela '${tableName}':`,
-          e
-        );
+        console.error(`[LanceDB] Erro ao criar tabela '${tableName}':`, e);
         throw e;
       }
     }
@@ -65,7 +62,7 @@ async function initializeCollections(chatToken) {
 
 /**
  * Remove todas as tabelas associadas a um chat.
- * @param {string} chatToken 
+ * @param {string} chatToken
  */
 async function deleteChatTables(chatToken) {
   const db = await getDbConnection();
@@ -80,7 +77,9 @@ async function deleteChatTables(chatToken) {
         await db.dropTable(tableName);
         console.log(`[LanceDB] Tabela removida: ${tableName}`);
       } else {
-        console.log(`[LanceDB] Tabela não encontrada para remoção: ${tableName}`);
+        console.log(
+          `[LanceDB] Tabela não encontrada para remoção: ${tableName}`,
+        );
       }
     } catch (e) {
       console.error(`[LanceDB] Erro ao remover tabela '${tableName}':`, e);
@@ -99,9 +98,16 @@ async function insertRecord(chatToken, collectionName, record) {
   const db = await getDbConnection();
   const tableName = `${chatToken}-${collectionName}`;
   const table = await db.openTable(tableName);
-  await table.add([record]);
+
+  // Sanitize messageid to prevent trailing whitespace issues
+  const sanitizedRecord = {
+    ...record,
+    messageid: record.messageid?.trim() || record.messageid,
+  };
+
+  await table.add([sanitizedRecord]);
   console.log(
-    `[LanceDB] Registro inserido em ${tableName} com messageid: ${record.messageid}.`
+    `[LanceDB] Registro inserido em ${tableName} com messageid: ${sanitizedRecord.messageid}.`,
   );
 }
 
@@ -112,18 +118,29 @@ async function insertRecord(chatToken, collectionName, record) {
  * @param {number[]} queryVector
  * @returns {Promise<object[]>}
  */
-async function searchByVector(chatToken, collectionName, queryVector, limit = 10) {
+async function searchByVector(
+  chatToken,
+  collectionName,
+  queryVector,
+  limit = 10,
+) {
   const db = await getDbConnection();
   const tableName = `${chatToken}-${collectionName}`;
   const table = await db.openTable(tableName);
 
   const results = await table.search(queryVector).limit(limit).toArray();
   console.log(
-    `[LanceDB] Busca em ${tableName} retornou ${results.length} resultados.`
+    `[LanceDB] Busca em ${tableName} retornou ${results.length} resultados.`,
   );
   // DEBUG: Mostra distâncias retornadas
   if (results.length > 0) {
-    console.log(`[LanceDB DEBUG] Primeiros 3 resultados _distance:`, results.slice(0, 3).map(r => ({ text: r.text?.substring(0, 30), _distance: r._distance })));
+    console.log(
+      `[LanceDB DEBUG] Primeiros 3 resultados _distance:`,
+      results.slice(0, 3).map((r) => ({
+        text: r.text?.substring(0, 30),
+        _distance: r._distance,
+      })),
+    );
   }
   return results;
 }
@@ -141,7 +158,9 @@ async function getAllRecordsFromCollection(chatToken, collectionName) {
   // Verifica existência antes de abrir
   const existingTables = await db.tableNames();
   if (!existingTables.includes(tableName)) {
-    console.warn(`[LanceDB] Tabela '${tableName}' não existe. Retornando vazio.`);
+    console.warn(
+      `[LanceDB] Tabela '${tableName}' não existe. Retornando vazio.`,
+    );
     return [];
   }
 
@@ -149,7 +168,7 @@ async function getAllRecordsFromCollection(chatToken, collectionName) {
   const table = await db.openTable(tableName);
   const records = await table.query().toArray();
   console.log(
-    `[LanceDB] Encontrados ${records.length} registros em '${tableName}'.`
+    `[LanceDB] Encontrados ${records.length} registros em '${tableName}'.`,
   );
 
   // Ordena por createdAt se disponível
@@ -171,35 +190,63 @@ async function updateRecordByMessageId(
   chatToken,
   messageid,
   newText,
-  newVector
+  newVector,
 ) {
   const db = await getDbConnection();
   let recordUpdated = false;
 
+  console.log(
+    `[LanceDB] updateRecordByMessageId - Buscando messageid: ${messageid}`,
+  );
+
   for (const collectionName of config.collectionNames) {
     const tableName = `${chatToken}-${collectionName}`;
     try {
+      const existingTables = await db.tableNames();
+      if (!existingTables.includes(tableName)) {
+        console.log(`[LanceDB] Tabela ${tableName} não existe, pulando.`);
+        continue;
+      }
+
       const table = await db.openTable(tableName);
 
-      const recordsFound = await table
-        .query()
-        .where(`messageid = '${messageid}'`)
-        .limit(1)
-        .toArray();
+      // First, let's check all records to see if the messageid exists at all
+      // IMPORTANT: Trim both sides to handle records saved with trailing spaces
+      const allRecords = await table.query().toArray();
+      const searchId = messageid.trim();
+      const matchingRecord = allRecords.find(
+        (r) => r.messageid?.trim() === searchId,
+      );
 
-      if (recordsFound.length > 0) {
+      console.log(
+        `[LanceDB] Tabela ${tableName}: ${allRecords.length} registros, match encontrado: ${!!matchingRecord}`,
+      );
+
+      // DEBUG: Show first 5 messageids to help identify mismatches
+      if (!matchingRecord && allRecords.length > 0) {
+        const sampleIds = allRecords.slice(0, 5).map((r) => r.messageid);
         console.log(
-          `[LanceDB] Registro encontrado em ${tableName}. Atualizando...`
+          `[LanceDB DEBUG] Primeiros 5 IDs em ${collectionName}:`,
+          sampleIds,
+        );
+      }
+
+      if (matchingRecord) {
+        console.log(
+          `[LanceDB] Registro encontrado em ${tableName}. Atualizando...`,
         );
 
-        const oldRecord = recordsFound[0];
+        const oldRecord = matchingRecord;
 
         await table.delete(`messageid = '${messageid}'`);
+
+        // Optimize to clear tombstones immediately
+        await table.optimize();
 
         await table.add([
           {
             text: newText,
-            vector: newVector,
+            vector: newVector || oldRecord.vector,
             messageid,
             role: oldRecord.role ?? null,
             createdAt: oldRecord.createdAt ?? Date.now(),
@@ -210,7 +257,7 @@ async function updateRecordByMessageId(
             sessionId: oldRecord.sessionId ?? null,
           },
         ]);
-        console.log(`[LanceDB] Atualização concluída em ${tableName}.`);
+        console.log(`[LanceDB] ✓ Atualização concluída em ${tableName}.`);
 
         recordUpdated = true;
         break;
@@ -219,10 +266,16 @@ async function updateRecordByMessageId(
       if (!error.message?.toLowerCase().includes("was not found")) {
         console.error(
           `[LanceDB] Erro ao tentar atualizar em ${tableName}:`,
-          error
+          error,
         );
       }
     }
+  }
+
+  if (!recordUpdated) {
+    console.warn(
+      `[LanceDB] ✗ Nenhum registro encontrado com messageid: ${messageid} em nenhuma tabela.`,
+    );
   }
 
   return recordUpdated;
@@ -230,29 +283,39 @@ async function updateRecordByMessageId(
 
 /**
  * Deleta um registro específico pelo ID em qualquer coleção do chat.
- * @param {string} chatToken 
- * @param {string} messageid 
+ * @param {string} chatToken
+ * @param {string} messageid
  * @returns {Promise<boolean>} True se deletou algo.
  */
 async function deleteRecordByMessageId(chatToken, messageid) {
   const db = await getDbConnection();
   let recordDeleted = false;
+  const searchId = messageid.trim();
 
   for (const collectionName of config.collectionNames) {
     const tableName = `${chatToken}-${collectionName}`;
     try {
       const table = await db.openTable(tableName);
 
-      // Tenta deletar - LanceDB usa "soft delete" (tombstones)
-      await table.delete(`messageid = '${messageid}'`);
+      // Find the actual messageid in the table (may have trailing spaces)
+      const allRecords = await table.query().toArray();
+      const matchingRecord = allRecords.find(
+        (r) => r.messageid?.trim() === searchId,
+      );
+
+      if (!matchingRecord) continue;
+
+      // Delete using the EXACT messageid from the database (with potential trailing space)
+      await table.delete(`messageid = '${matchingRecord.messageid}'`);
 
       // IMPORTANTE: optimize() compacta a tabela e remove fisicamente os registros
       // marcados para deleção. Sem isso, buscas vetoriais ainda retornam os registros.
       await table.optimize();
 
-      console.log(`[LanceDB] Deletado e otimizado em ${tableName} para id ${messageid}`);
+      console.log(
+        `[LanceDB] Deletado e otimizado em ${tableName} para id ${searchId}`,
+      );
       recordDeleted = true;
-
     } catch (error) {
       if (!error.message?.toLowerCase().includes("was not found")) {
         // Ignora erro de tabela não encontrada, loga outros
@@ -271,12 +334,17 @@ async function deleteRecordByMessageId(chatToken, messageid) {
  * @param {number} limitPerChat - Limite de resultados por chat/coleção
  * @returns {Promise<object[]>} - Resultados agregados
  */
-async function searchAcrossChats(chatTokens, collections, queryVector, limitPerChat = 3) {
+async function searchAcrossChats(
+  chatTokens,
+  collections,
+  queryVector,
+  limitPerChat = 3,
+) {
   const db = await getDbConnection();
   const existingTables = await db.tableNames();
 
-  const searchPromises = chatTokens.flatMap(token =>
-    collections.map(async col => {
+  const searchPromises = chatTokens.flatMap((token) =>
+    collections.map(async (col) => {
       const tableName = `${token}-${col}`;
       if (!existingTables.includes(tableName)) return [];
 
@@ -284,28 +352,34 @@ async function searchAcrossChats(chatTokens, collections, queryVector, limitPerC
         const table = await db.openTable(tableName);
         let results;
 
-        if (col === 'historico') {
+        if (col === "historico") {
           // Para histórico, busca mais mas retorna só os mais recentes
-          const allResults = await table.search(queryVector).limit(100).toArray();
+          const allResults = await table
+            .search(queryVector)
+            .limit(100)
+            .toArray();
           // Ordena por createdAt e pega as últimas 50
           allResults.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           results = allResults.slice(0, 50);
         } else {
-          results = await table.search(queryVector).limit(limitPerChat).toArray();
+          results = await table
+            .search(queryVector)
+            .limit(limitPerChat)
+            .toArray();
         }
 
-        return results.map(r => ({
+        return results.map((r) => ({
           ...r,
           chatToken: token,
           collection: col,
           // _distance é retornado pelo LanceDB (menor = mais similar)
-          relevanceScore: r._distance ? (1 / (1 + r._distance)) : 0
+          relevanceScore: r._distance ? 1 / (1 + r._distance) : 0,
         }));
       } catch (err) {
         console.warn(`[LanceDB] Erro ao buscar em ${tableName}:`, err.message);
         return [];
       }
-    })
+    }),
   );
 
   const allResults = await Promise.all(searchPromises);
@@ -325,7 +399,13 @@ async function searchAcrossChats(chatTokens, collections, queryVector, limitPerC
  * @param {number} limit
  * @returns {Promise<object[]>}
  */
-async function hybridSearch(chatToken, collectionName, queryVector, queryText, limit = 50) {
+async function hybridSearch(
+  chatToken,
+  collectionName,
+  queryVector,
+  queryText,
+  limit = 50,
+) {
   const db = await getDbConnection();
   const tableName = `${chatToken}-${collectionName}`;
 
@@ -333,7 +413,10 @@ async function hybridSearch(chatToken, collectionName, queryVector, queryText, l
     const table = await db.openTable(tableName);
 
     // Busca vetorial (principal)
-    const vectorResults = await table.search(queryVector).limit(limit).toArray();
+    const vectorResults = await table
+      .search(queryVector)
+      .limit(limit)
+      .toArray();
 
     // Nota: LanceDB FTS requer índice FTS criado previamente com createIndex()
     // Por ora, focamos na busca vetorial que é mais robusta
@@ -342,7 +425,9 @@ async function hybridSearch(chatToken, collectionName, queryVector, queryText, l
 
     // Reciprocal Rank Fusion (funciona mesmo com textResults vazio)
     const combined = reciprocalRankFusion(vectorResults, textResults);
-    console.log(`[LanceDB] Hybrid search em ${tableName}: ${vectorResults.length} resultados.`);
+    console.log(
+      `[LanceDB] Hybrid search em ${tableName}: ${vectorResults.length} resultados.`,
+    );
 
     return combined.slice(0, limit);
   } catch (e) {
@@ -385,7 +470,11 @@ function reciprocalRankFusion(...resultSets) {
  * @param {string[]} messageids
  * @param {number} currentMessageCount
  */
-async function markMemoriesAccessed(chatToken, messageids, currentMessageCount) {
+async function markMemoriesAccessed(
+  chatToken,
+  messageids,
+  currentMessageCount,
+) {
   const db = await getDbConnection();
 
   for (const collectionName of config.collectionNames) {
@@ -394,18 +483,24 @@ async function markMemoriesAccessed(chatToken, messageids, currentMessageCount) 
       const table = await db.openTable(tableName);
 
       for (const messageid of messageids) {
-        const records = await table.query().where(`messageid = '${messageid}'`).limit(1).toArray();
+        const records = await table
+          .query()
+          .where(`messageid = '${messageid}'`)
+          .limit(1)
+          .toArray();
         if (records.length > 0) {
           const record = records[0];
           const newAccessCount = (record.accessCount || 0) + 1;
 
           // Update via delete + add
           await table.delete(`messageid = '${messageid}'`);
-          await table.add([{
-            ...record,
-            accessCount: newAccessCount,
-            lastMessageAccessed: currentMessageCount
-          }]);
+          await table.add([
+            {
+              ...record,
+              accessCount: newAccessCount,
+              lastMessageAccessed: currentMessageCount,
+            },
+          ]);
         }
       }
     } catch (e) {
@@ -413,7 +508,9 @@ async function markMemoriesAccessed(chatToken, messageids, currentMessageCount) 
     }
   }
 
-  console.log(`[LanceDB] Marcadas ${messageids.length} memórias como acessadas.`);
+  console.log(
+    `[LanceDB] Marcadas ${messageids.length} memórias como acessadas.`,
+  );
 }
 
 /**
@@ -422,10 +519,10 @@ async function markMemoriesAccessed(chatToken, messageids, currentMessageCount) 
  * @returns {object[]}
  */
 function applyFrequencyBias(results) {
-  return results.map(r => {
+  return results.map((r) => {
     const accessCount = r.accessCount || 0;
     // Log para evitar explosão, max 30% de boost
-    const frequencyBoost = Math.min(0.30, Math.log(1 + accessCount) * 0.05);
+    const frequencyBoost = Math.min(0.3, Math.log(1 + accessCount) * 0.05);
 
     // Guarda distância original, usa 1 como fallback se undefined
     const originalDistance = r._distance ?? r._rrfScore ?? 1;
@@ -434,7 +531,7 @@ function applyFrequencyBias(results) {
       ...r,
       _originalDistance: originalDistance,
       _distance: originalDistance * (1 - frequencyBoost),
-      _frequencyBoost: frequencyBoost
+      _frequencyBoost: frequencyBoost,
     };
   });
 }
@@ -467,7 +564,11 @@ async function initializeHebbianTable(chatToken) {
  * @param {object[]} retrievedMemories
  * @param {number} currentMessageCount
  */
-async function updateHebbianAssociations(chatToken, retrievedMemories, currentMessageCount) {
+async function updateHebbianAssociations(
+  chatToken,
+  retrievedMemories,
+  currentMessageCount,
+) {
   const db = await getDbConnection();
   const tableName = `${chatToken}-hebbian`;
   const LEARNING_RATE = 0.1;
@@ -491,42 +592,59 @@ async function updateHebbianAssociations(chatToken, retrievedMemories, currentMe
         const targetId = retrievedMemories[j].messageid;
 
         // Busca associação existente
-        const existing = await table.query()
-          .where(`("sourceId" = '${sourceId}' AND "targetId" = '${targetId}') OR ("sourceId" = '${targetId}' AND "targetId" = '${sourceId}')`)
+        const existing = await table
+          .query()
+          .where(
+            `("sourceId" = '${sourceId}' AND "targetId" = '${targetId}') OR ("sourceId" = '${targetId}' AND "targetId" = '${sourceId}')`,
+          )
           .limit(1)
           .toArray();
 
-        const proximityBonus = 1 - (Math.abs(i - j) / retrievedMemories.length);
+        const proximityBonus = 1 - Math.abs(i - j) / retrievedMemories.length;
 
         if (existing.length > 0) {
           // Atualiza associação existente
           const assoc = existing[0];
-          const newStrength = Math.min(MAX_STRENGTH, assoc.strength + LEARNING_RATE * proximityBonus);
+          const newStrength = Math.min(
+            MAX_STRENGTH,
+            assoc.strength + LEARNING_RATE * proximityBonus,
+          );
 
-          await table.delete(`"sourceId" = '${assoc.sourceId}' AND "targetId" = '${assoc.targetId}'`);
-          await table.add([{
-            ...assoc,
-            strength: newStrength,
-            coOccurrences: (assoc.coOccurrences || 0) + 1,
-            lastMessageUpdated: currentMessageCount
-          }]);
+          await table.delete(
+            `"sourceId" = '${assoc.sourceId}' AND "targetId" = '${assoc.targetId}'`,
+          );
+          await table.add([
+            {
+              ...assoc,
+              strength: newStrength,
+              coOccurrences: (assoc.coOccurrences || 0) + 1,
+              lastMessageUpdated: currentMessageCount,
+            },
+          ]);
         } else {
           // Cria nova associação
-          await table.add([{
-            sourceId,
-            targetId,
-            strength: LEARNING_RATE * proximityBonus,
-            coOccurrences: 1,
-            lastMessageUpdated: currentMessageCount,
-            chatToken
-          }]);
+          await table.add([
+            {
+              sourceId,
+              targetId,
+              strength: LEARNING_RATE * proximityBonus,
+              coOccurrences: 1,
+              lastMessageUpdated: currentMessageCount,
+              chatToken,
+            },
+          ]);
         }
       }
     }
 
-    console.log(`[LanceDB] Associações Hebbianas atualizadas para ${Math.min(10, retrievedMemories.length)} memórias.`);
+    console.log(
+      `[LanceDB] Associações Hebbianas atualizadas para ${Math.min(10, retrievedMemories.length)} memórias.`,
+    );
   } catch (e) {
-    console.warn(`[LanceDB] Erro ao atualizar associações Hebbianas:`, e.message);
+    console.warn(
+      `[LanceDB] Erro ao atualizar associações Hebbianas:`,
+      e.message,
+    );
   }
 }
 
@@ -541,32 +659,44 @@ async function applyHebbianBoost(chatToken, results) {
   const tableName = `${chatToken}-hebbian`;
   const MIN_STRENGTH = 0.3; // Só puxa se associação for forte
   const boostedResults = [...results];
-  const existingIds = new Set(results.map(r => r.messageid));
+  const existingIds = new Set(results.map((r) => r.messageid));
 
   try {
     const table = await db.openTable(tableName);
 
-    for (const memory of results.slice(0, 5)) { // Limita a 5 para performance
+    for (const memory of results.slice(0, 5)) {
+      // Limita a 5 para performance
       // Busca associações fortes
-      const associations = await table.query()
-        .where(`("sourceId" = '${memory.messageid}' OR "targetId" = '${memory.messageid}') AND "strength" >= ${MIN_STRENGTH}`)
+      const associations = await table
+        .query()
+        .where(
+          `("sourceId" = '${memory.messageid}' OR "targetId" = '${memory.messageid}') AND "strength" >= ${MIN_STRENGTH}`,
+        )
         .limit(5)
         .toArray();
 
       for (const assoc of associations) {
-        const linkedId = assoc.sourceId === memory.messageid ? assoc.targetId : assoc.sourceId;
+        const linkedId =
+          assoc.sourceId === memory.messageid ? assoc.targetId : assoc.sourceId;
 
         if (!existingIds.has(linkedId)) {
           // Busca a memória associada
           for (const collectionName of config.collectionNames) {
-            const collTable = await db.openTable(`${chatToken}-${collectionName}`);
-            const linked = await collTable.query().where(`messageid = '${linkedId}'`).limit(1).toArray();
+            const collTable = await db.openTable(
+              `${chatToken}-${collectionName}`,
+            );
+            const linked = await collTable
+              .query()
+              .where(`messageid = '${linkedId}'`)
+              .limit(1)
+              .toArray();
 
             if (linked.length > 0) {
               const linkedMemory = linked[0];
               // Boost baseado na força da associação (max 30%)
-              const hebbianBoost = assoc.strength * 0.30;
-              linkedMemory._distance = (linkedMemory._distance || 1) * (1 - hebbianBoost);
+              const hebbianBoost = assoc.strength * 0.3;
+              linkedMemory._distance =
+                (linkedMemory._distance || 1) * (1 - hebbianBoost);
               linkedMemory._hebbianPulledBy = memory.messageid;
               linkedMemory._hebbianStrength = assoc.strength;
               linkedMemory.category = collectionName;
@@ -580,7 +710,9 @@ async function applyHebbianBoost(chatToken, results) {
       }
     }
 
-    console.log(`[LanceDB] Hebbian boost: ${boostedResults.length - results.length} memórias puxadas.`);
+    console.log(
+      `[LanceDB] Hebbian boost: ${boostedResults.length - results.length} memórias puxadas.`,
+    );
   } catch (e) {
     // Tabela pode não existir ainda
   }
@@ -594,7 +726,11 @@ async function applyHebbianBoost(chatToken, results) {
  * @param {number} currentMessageCount
  * @param {number} decayRate
  */
-async function applySynapticDecay(chatToken, currentMessageCount, decayRate = 0.01) {
+async function applySynapticDecay(
+  chatToken,
+  currentMessageCount,
+  decayRate = 0.01,
+) {
   const db = await getDbConnection();
   const tableName = `${chatToken}-hebbian`;
   const MIN_STRENGTH = 0.05;
@@ -607,11 +743,14 @@ async function applySynapticDecay(chatToken, currentMessageCount, decayRate = 0.
     let deleted = 0;
 
     for (const assoc of associations) {
-      const messagesSinceUpdate = currentMessageCount - (assoc.lastMessageUpdated || 0);
+      const messagesSinceUpdate =
+        currentMessageCount - (assoc.lastMessageUpdated || 0);
       const decayFactor = Math.exp(-decayRate * messagesSinceUpdate);
       const newStrength = assoc.strength * decayFactor;
 
-      await table.delete(`"sourceId" = '${assoc.sourceId}' AND "targetId" = '${assoc.targetId}'`);
+      await table.delete(
+        `"sourceId" = '${assoc.sourceId}' AND "targetId" = '${assoc.targetId}'`,
+      );
 
       if (newStrength >= MIN_STRENGTH) {
         await table.add([{ ...assoc, strength: newStrength }]);
@@ -621,7 +760,9 @@ async function applySynapticDecay(chatToken, currentMessageCount, decayRate = 0.
       }
     }
 
-    console.log(`[LanceDB] Synaptic decay: ${decayed} associações enfraquecidas, ${deleted} esquecidas.`);
+    console.log(
+      `[LanceDB] Synaptic decay: ${decayed} associações enfraquecidas, ${deleted} esquecidas.`,
+    );
   } catch (e) {
     // Tabela pode não existir
   }
@@ -648,7 +789,10 @@ module.exports = {
   applyHebbianBoost,
   applySynapticDecay,
   // Embedding Check & Repair
-  countZeroEmbeddings: async function (chatToken, collections = ['conceitos', 'fatos', 'historico']) {
+  countZeroEmbeddings: async function (
+    chatToken,
+    collections = ["conceitos", "fatos", "historico"],
+  ) {
     const db = await getDbConnection();
     let total = 0;
     const byCollection = {};
@@ -683,13 +827,18 @@ module.exports = {
 
     return { total, byCollection };
   },
-  repairZeroEmbeddings: async function (chatToken, generateEmbeddingFn, apiKey, collections = ['conceitos', 'fatos']) {
+  repairZeroEmbeddings: async function (
+    chatToken,
+    generateEmbeddingFn,
+    apiKey,
+    collections = ["conceitos", "fatos"],
+  ) {
     const db = await getDbConnection();
     const results = {
       repaired: 0,
       failed: 0,
       skipped: 0,
-      details: []
+      details: [],
     };
 
     // Função auxiliar para verificar vetor zerado
@@ -699,7 +848,9 @@ module.exports = {
       return sum < 0.001;
     };
 
-    console.log(`[LanceDB] Iniciando reparo de embeddings para chat ${chatToken}...`);
+    console.log(
+      `[LanceDB] Iniciando reparo de embeddings para chat ${chatToken}...`,
+    );
 
     for (const collectionName of collections) {
       const tableName = `${chatToken}-${collectionName}`;
@@ -714,11 +865,15 @@ module.exports = {
         const table = await db.openTable(tableName);
         const allRecords = await table.query().toArray();
 
-        console.log(`[LanceDB] Verificando ${allRecords.length} registros em ${tableName}...`);
+        console.log(
+          `[LanceDB] Verificando ${allRecords.length} registros em ${tableName}...`,
+        );
 
         for (const record of allRecords) {
           if (isZeroVector(record.vector)) {
-            console.log(`[LanceDB] Vetor zerado: "${record.text?.substring(0, 50)}..."`);
+            console.log(
+              `[LanceDB] Vetor zerado: "${record.text?.substring(0, 50)}..."`,
+            );
 
             if (!record.text || record.text.trim().length === 0) {
               results.skipped++;
@@ -734,8 +889,8 @@ module.exports = {
                   messageid: record.messageid,
                   text: record.text?.substring(0, 100),
                   collection: collectionName,
-                  status: 'failed',
-                  reason: 'Generated embedding is still zero'
+                  status: "failed",
+                  reason: "Generated embedding is still zero",
                 });
                 continue;
               }
@@ -743,16 +898,18 @@ module.exports = {
               await table.delete(`messageid = '${record.messageid}'`);
               await table.add([{ ...record, vector: newVector }]);
 
-              console.log(`[LanceDB] ✓ Reparado: "${record.text?.substring(0, 50)}..."`);
+              console.log(
+                `[LanceDB] ✓ Reparado: "${record.text?.substring(0, 50)}..."`,
+              );
               results.repaired++;
               results.details.push({
                 messageid: record.messageid,
                 text: record.text?.substring(0, 100),
                 collection: collectionName,
-                status: 'repaired'
+                status: "repaired",
               });
 
-              await new Promise(resolve => setTimeout(resolve, 500));
+              await new Promise((resolve) => setTimeout(resolve, 500));
             } catch (err) {
               console.error(`[LanceDB] Erro:`, err.message);
               results.failed++;
@@ -760,18 +917,23 @@ module.exports = {
                 messageid: record.messageid,
                 text: record.text?.substring(0, 100),
                 collection: collectionName,
-                status: 'failed',
-                reason: err.message
+                status: "failed",
+                reason: err.message,
               });
             }
           }
         }
       } catch (tableError) {
-        console.error(`[LanceDB] Erro ao processar ${tableName}:`, tableError.message);
+        console.error(
+          `[LanceDB] Erro ao processar ${tableName}:`,
+          tableError.message,
+        );
       }
     }
 
-    console.log(`[LanceDB] Reparo concluído: ${results.repaired} reparados, ${results.failed} falhas, ${results.skipped} pulados.`);
+    console.log(
+      `[LanceDB] Reparo concluído: ${results.repaired} reparados, ${results.failed} falhas, ${results.skipped} pulados.`,
+    );
     return results;
-  }
+  },
 };

@@ -32,6 +32,7 @@ const ChatView = ({ chatToken }) => {
   const [pendingDeletions, setPendingDeletions] = useState(null);
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
+  const [pendingDiceResults, setPendingDiceResults] = useState([]); // Dice rolls waiting to be sent with next message
 
   // Carrega histórico ao montar ou trocar de chat
   useEffect(() => {
@@ -85,7 +86,7 @@ const ChatView = ({ chatToken }) => {
       }
     }
 
-    // Check for dice command
+    // Check for dice command - dice rolls are added to history without AI response
     if (userMessage.startsWith('/r ')) {
       const commandData = parseDiceCommand(userMessage);
 
@@ -100,14 +101,36 @@ const ChatView = ({ chatToken }) => {
         );
 
         // Trigger Animation
-        setDiceAnimationData({ ...commandData, ...result });
+        setDiceAnimationData({ ...commandData, ...result, notation: `${commandData.count}d${commandData.type}` });
 
-        // Send the RESULT string instead of the command
-        userMessage = resultString;
+        // Store dice result locally (will be sent with next message)
+        setPendingDiceResults(prev => [...prev, resultString]);
+        
+        // Display pending dice roll in chat (local only, with special marker)
+        const localDiceMessage = {
+          role: "dice",
+          text: resultString,
+          messageid: `local_${crypto.randomUUID()}`,
+          isPending: true
+        };
+        setMessages((prev) => [...prev, localDiceMessage]);
+        log("CHAT", `Rolagem pendente: ${resultString}`);
+        return; // Exit early - don't trigger AI response
       }
     }
 
-    log("CHAT", `Usuário enviou: "${userMessage}" com ${files.length} arquivos`);
+    // Prepend pending dice results to the user message
+    let finalMessage = userMessage;
+    if (pendingDiceResults.length > 0) {
+      const diceContext = pendingDiceResults.join('\n');
+      finalMessage = `[Resultados de rolagem: ${diceContext}]\n\n${userMessage}`;
+      setPendingDiceResults([]); // Clear pending dice
+      
+      // Remove local dice messages from UI (they'll come back from server)
+      setMessages(prev => prev.filter(m => !m.isPending));
+    }
+
+    log("CHAT", `Usuário enviou: "${finalMessage}" com ${files.length} arquivos`);
     setIsLoading(true);
 
     // Adiciona mensagem do usuário otimista (com ID temporário)
@@ -128,7 +151,7 @@ const ChatView = ({ chatToken }) => {
     try {
       const response = await generateChatResponse(
         chatToken,
-        displayText,
+        finalMessage, // Use finalMessage which includes pending dice results
         vectorMemory,
         files
       );

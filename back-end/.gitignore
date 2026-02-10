@@ -1,8 +1,11 @@
 node_modules/
 .env
+src/.env
 .vscode/
 src/data/
 src/**/*.lance
 src/**/*.txn
 src/**/*.manifest
 uploads/
+logs/
+src/data/cli2api-instances/

@@ -35,11 +35,15 @@ async function renameChat(req, res, next) {
     const { newTitle } = req.body;
 
     if (!newTitle) {
-      return res.status(400).json({ error: "O campo 'newTitle' é obrigatório." });
+      return res
+        .status(400)
+        .json({ error: "O campo 'newTitle' é obrigatório." });
     }
 
     const updatedMetadata = await chatService.renameChat(chatToken, newTitle);
-    res.status(200).json({ message: "Chat renomeado com sucesso.", data: updatedMetadata });
+    res
+      .status(200)
+      .json({ message: "Chat renomeado com sucesso.", data: updatedMetadata });
   } catch (error) {
     next(error);
   }
@@ -51,8 +55,15 @@ async function branchChat(req, res, next) {
     const { chatToken, messageId } = req.params;
     const userId = req.user ? req.user.id : null;
 
-    const newChatToken = await chatService.branchChat(chatToken, messageId, userId);
-    res.status(201).json({ message: "Chat bifurcado com sucesso!", chatToken: newChatToken });
+    const newChatToken = await chatService.branchChat(
+      chatToken,
+      messageId,
+      userId,
+    );
+    res.status(201).json({
+      message: "Chat bifurcado com sucesso!",
+      chatToken: newChatToken,
+    });
   } catch (error) {
     next(error);
   }
@@ -67,7 +78,7 @@ async function generateChatResponse(req, res, next) {
     let { message, previousVectorMemory } = req.body;
     const files = req.files || [];
 
-    if (typeof previousVectorMemory === 'string') {
+    if (typeof previousVectorMemory === "string") {
       try {
         previousVectorMemory = JSON.parse(previousVectorMemory);
       } catch (e) {
@@ -76,14 +87,16 @@ async function generateChatResponse(req, res, next) {
     }
 
     if (!message && files.length === 0) {
-      return res.status(400).json({ error: "O campo 'message' ou um arquivo é obrigatório." });
+      return res
+        .status(400)
+        .json({ error: "O campo 'message' ou um arquivo é obrigatório." });
     }
 
     const generationResult = await chatService.handleChatGeneration(
       chatToken,
       message || "",
       previousVectorMemory,
-      files
+      files,
     );
 
     // Se houver pendências de deleção, o frontend receberá no generationResult
@@ -95,7 +108,7 @@ async function generateChatResponse(req, res, next) {
         error: error.userMessage,
         errorType: error.errorType,
         reasons: error.reasons,
-        details: error.message
+        details: error.message,
       });
     }
     next(error);
@@ -109,7 +122,9 @@ async function deleteMemories(req, res, next) {
     const { messageids } = req.body;
 
     if (!messageids || !Array.isArray(messageids)) {
-      return res.status(400).json({ error: "O campo 'messageids' deve ser um array de strings." });
+      return res
+        .status(400)
+        .json({ error: "O campo 'messageids' deve ser um array de strings." });
     }
 
     const results = [];
@@ -118,7 +133,9 @@ async function deleteMemories(req, res, next) {
       results.push({ id, deleted: wasDeleted });
     }
 
-    res.status(200).json({ message: "Memórias deletadas com sucesso.", results });
+    res
+      .status(200)
+      .json({ message: "Memórias deletadas com sucesso.", results });
   } catch (error) {
     next(error);
   }
@@ -139,7 +156,9 @@ async function addMessage(req, res, next) {
     const apiKeys = chatMetadata?.config?.googleApiKeys || [];
 
     if (apiKeys.length === 0) {
-      console.warn(`[Controller] addMessage - Nenhuma API key configurada para chat ${chatToken}`);
+      console.warn(
+        `[Controller] addMessage - Nenhuma API key configurada para chat ${chatToken}`,
+      );
     }
 
     const result = await chatService.addMessage(
@@ -150,13 +169,13 @@ async function addMessage(req, res, next) {
       [], // attachments
       apiKeys, // API keys para embedding
       null, // thoughtSignature
-      {} // options
+      {}, // options
     );
 
     res.status(201).json({
       message: `Dados inseridos com sucesso na coleção '${collectionName}'.`,
       messageid: result.messageid,
-      embeddingStatus: result.embeddingStatus
+      embeddingStatus: result.embeddingStatus,
     });
   } catch (error) {
     next(error);
@@ -170,13 +189,15 @@ async function editMessage(req, res, next) {
     const { newContent } = req.body;
 
     if (!newContent) {
-      return res.status(400).json({ error: "O campo 'newContent' é obrigatório." });
+      return res
+        .status(400)
+        .json({ error: "O campo 'newContent' é obrigatório." });
     }
 
     const wasUpdated = await chatService.editMessage(
       chatToken,
       messageid,
-      newContent
+      newContent,
     );
 
     if (wasUpdated) {
@@ -199,7 +220,10 @@ async function deleteMessage(req, res, next) {
     if (wasDeleted) {
       res.status(200).json({ message: "Mensagem deletada com sucesso." });
     } else {
-      res.status(200).json({ message: "Operação de delete concluída (nada encontrado ou já deletado)." });
+      res.status(200).json({
+        message:
+          "Operação de delete concluída (nada encontrado ou já deletado).",
+      });
     }
   } catch (error) {
     next(error);
@@ -220,14 +244,16 @@ async function searchMessages(req, res, next) {
     const chatMetadata = await chatService.getChatDetails(chatToken);
     const apiKey = chatMetadata?.config?.googleApiKeys?.[0];
 
-    console.log(`[Controller] searchMessages - chatToken: ${chatToken}, hasMetadata: ${!!chatMetadata}, hasConfig: ${!!chatMetadata?.config}, hasApiKey: ${!!apiKey}`);
+    console.log(
+      `[Controller] searchMessages - chatToken: ${chatToken}, hasMetadata: ${!!chatMetadata}, hasConfig: ${!!chatMetadata?.config}, hasApiKey: ${!!apiKey}`,
+    );
 
     const results = await chatService.searchMessages(
       chatToken,
       collectionName,
       text,
       5, // limit padrão
-      apiKey
+      apiKey,
     );
     res.status(200).json(results);
   } catch (error) {
@@ -287,7 +313,9 @@ async function importChat(req, res, next) {
     const { messages, apiKey } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: "O campo 'messages' é obrigatório e deve ser um array." });
+      return res.status(400).json({
+        error: "O campo 'messages' é obrigatório e deve ser um array.",
+      });
     }
 
     const userId = req.user ? req.user.id : null;
@@ -298,15 +326,24 @@ async function importChat(req, res, next) {
     res.setHeader("Connection", "keep-alive");
 
     const onProgress = (current, total) => {
-      res.write(`data: ${JSON.stringify({ type: "progress", current, total })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "progress", current, total })}\n\n`,
+      );
     };
 
     try {
-      const chatToken = await chatService.importChat(userId, messages, apiKey, onProgress);
+      const chatToken = await chatService.importChat(
+        userId,
+        messages,
+        apiKey,
+        onProgress,
+      );
       res.write(`data: ${JSON.stringify({ type: "complete", chatToken })}\n\n`);
     } catch (err) {
       console.error("Erro durante importação:", err);
-      res.write(`data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`,
+      );
     } finally {
       res.end();
     }
@@ -341,7 +378,10 @@ async function exportMemories(req, res, next) {
 
     // Converte string "fatos,conceitos" para array
     if (typeof collections === "string") {
-      collections = collections.split(",").map(c => c.trim()).filter(c => c);
+      collections = collections
+        .split(",")
+        .map((c) => c.trim())
+        .filter((c) => c);
     }
 
     if (!collections || collections.length === 0) {
@@ -371,8 +411,14 @@ async function importMemories(req, res, next) {
       return res.status(400).json({ error: "O campo 'data' é obrigatório." });
     }
 
-    if (!collections || !Array.isArray(collections) || collections.length === 0) {
-      return res.status(400).json({ error: "O campo 'collections' é obrigatório e deve ser um array." });
+    if (
+      !collections ||
+      !Array.isArray(collections) ||
+      collections.length === 0
+    ) {
+      return res.status(400).json({
+        error: "O campo 'collections' é obrigatório e deve ser um array.",
+      });
     }
 
     // Configura SSE para progresso
@@ -381,15 +427,24 @@ async function importMemories(req, res, next) {
     res.setHeader("Connection", "keep-alive");
 
     const onProgress = (current, total) => {
-      res.write(`data: ${JSON.stringify({ type: "progress", current, total })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "progress", current, total })}\n\n`,
+      );
     };
 
     try {
-      const stats = await chatService.importMemories(chatToken, data, collections, onProgress);
+      const stats = await chatService.importMemories(
+        chatToken,
+        data,
+        collections,
+        onProgress,
+      );
       res.write(`data: ${JSON.stringify({ type: "complete", stats })}\n\n`);
     } catch (err) {
       console.error("Erro durante importação de memórias:", err);
-      res.write(`data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`,
+      );
     } finally {
       res.end();
     }
@@ -412,7 +467,9 @@ async function searchGlobal(req, res, next) {
       return res.status(400).json({ error: "O campo 'query' é obrigatório." });
     }
     if (!apiKey) {
-      return res.status(400).json({ error: "API Key é necessária para busca semântica." });
+      return res
+        .status(400)
+        .json({ error: "API Key é necessária para busca semântica." });
     }
 
     const results = await chatService.searchAllUserChats(userId, query, apiKey);
@@ -434,13 +491,19 @@ async function vectorizePDF(req, res, next) {
     const { pdfData, fileName, collection } = req.body;
 
     if (!pdfData) {
-      return res.status(400).json({ error: "O campo 'pdfData' (base64) é obrigatório." });
+      return res
+        .status(400)
+        .json({ error: "O campo 'pdfData' (base64) é obrigatório." });
     }
     if (!fileName) {
-      return res.status(400).json({ error: "O campo 'fileName' é obrigatório." });
+      return res
+        .status(400)
+        .json({ error: "O campo 'fileName' é obrigatório." });
     }
     if (!collection) {
-      return res.status(400).json({ error: "O campo 'collection' é obrigatório (fatos, conceitos, etc)." });
+      return res.status(400).json({
+        error: "O campo 'collection' é obrigatório (fatos, conceitos, etc).",
+      });
     }
 
     // Busca API Key dos metadados do chat (usa primeira key do Google)
@@ -448,7 +511,9 @@ async function vectorizePDF(req, res, next) {
     const apiKey = chatMetadata?.config?.googleApiKeys?.[0];
 
     if (!apiKey) {
-      return res.status(400).json({ error: "API Key do Google não configurada." });
+      return res
+        .status(400)
+        .json({ error: "API Key do Google não configurada." });
     }
 
     // Configura SSE para progresso
@@ -457,7 +522,9 @@ async function vectorizePDF(req, res, next) {
     res.setHeader("Connection", "keep-alive");
 
     const onProgress = (current, total) => {
-      res.write(`data: ${JSON.stringify({ type: "progress", current, total })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "progress", current, total })}\n\n`,
+      );
     };
 
     try {
@@ -467,12 +534,14 @@ async function vectorizePDF(req, res, next) {
         pdfData,
         fileName,
         apiKey,
-        onProgress
+        onProgress,
       );
       res.write(`data: ${JSON.stringify({ type: "complete", ...result })}\n\n`);
     } catch (err) {
       console.error("Erro durante vetorização:", err);
-      res.write(`data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`,
+      );
     } finally {
       res.end();
     }
@@ -491,7 +560,10 @@ async function listVectorizedDocuments(req, res, next) {
   try {
     const { chatToken, collection } = req.params;
 
-    const documents = await pdfService.listVectorizedDocuments(chatToken, collection);
+    const documents = await pdfService.listVectorizedDocuments(
+      chatToken,
+      collection,
+    );
     res.status(200).json(documents);
   } catch (error) {
     next(error);
@@ -504,10 +576,14 @@ async function deleteVectorizedDocument(req, res, next) {
   try {
     const { chatToken, collection, documentId } = req.params;
 
-    const deletedCount = await pdfService.deleteVectorizedDocument(chatToken, collection, documentId);
+    const deletedCount = await pdfService.deleteVectorizedDocument(
+      chatToken,
+      collection,
+      documentId,
+    );
     res.status(200).json({
       message: "Documento removido com sucesso.",
-      deletedChunks: deletedCount
+      deletedChunks: deletedCount,
     });
   } catch (error) {
     next(error);
@@ -520,13 +596,15 @@ async function repairEmbeddings(req, res, next) {
   try {
     const { chatToken } = req.params;
 
-    console.log(`[Controller] Iniciando reparo de embeddings para chat ${chatToken}...`);
+    console.log(
+      `[Controller] Iniciando reparo de embeddings para chat ${chatToken}...`,
+    );
 
     const result = await chatService.repairEmbeddings(chatToken);
 
     res.status(200).json({
       message: "Reparo de embeddings concluído.",
-      ...result
+      ...result,
     });
   } catch (error) {
     next(error);
@@ -569,5 +647,5 @@ module.exports = {
   listVectorizedDocuments,
   deleteVectorizedDocument,
   checkEmbeddings,
-  repairEmbeddings
+  repairEmbeddings,
 };

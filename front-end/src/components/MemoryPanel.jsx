@@ -488,7 +488,7 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                     const tooltipText = [
                       item._score != null ? `Relevância: ${(item._score * 100).toFixed(0)}%` : null,
                       item.createdAt ? `Criado: ${new Date(item.createdAt).toLocaleDateString('pt-BR')}` : null,
-                      item.messageid ? `ID: ${item.messageid.slice(0, 8)}...` : null
+                      item.messageid ? `ID: ${String(item.messageid).slice(0, 8)}...` : null
                     ].filter(Boolean).join(' | ');
 
                     return (
