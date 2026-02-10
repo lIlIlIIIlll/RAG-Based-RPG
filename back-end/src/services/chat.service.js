@@ -1535,8 +1535,8 @@ ${previouslyOnText}
       modelName: chatMetadata.config.cli2apiModelName || "gemini-2.5-pro",
       temperature,
       tools,
-      baseUrl: chatMetadata.config.cli2apiBaseUrl || "http://localhost:8317",
-      apiKey: chatMetadata.config.cli2apiApiKey || "batata",
+      baseUrl: cli2apiOptions.baseUrl,
+      apiKey: cli2apiOptions.apiKey,
     };
   } else {
     generationOptions = {

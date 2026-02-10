@@ -109,6 +109,25 @@ max-retry-interval: 5
 
 gemini:
   safety-settings: "BLOCK_NONE"
+
+oauth-model-alias:
+  antigravity:
+    - name: "rev19-uic3-1p"
+      alias: "gemini-2.5-computer-use-preview-10-2025"
+    - name: "gemini-3-pro-image"
+      alias: "gemini-3-pro-image-preview"
+    - name: "gemini-3-pro-high"
+      alias: "gemini-3-pro-preview"
+    - name: "gemini-3-flash"
+      alias: "gemini-3-flash-preview"
+    - name: "claude-sonnet-4-5"
+      alias: "gemini-claude-sonnet-4-5"
+    - name: "claude-sonnet-4-5-thinking"
+      alias: "gemini-claude-sonnet-4-5-thinking"
+    - name: "claude-opus-4-5-thinking"
+      alias: "gemini-claude-opus-4-5-thinking"
+    - name: "claude-opus-4-6-thinking"
+      alias: "gemini-claude-opus-4-6-thinking"
 `;
 }
 

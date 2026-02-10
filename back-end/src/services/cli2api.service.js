@@ -297,7 +297,7 @@ Tamanho ideal: 50-150 palavras.
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-3-pro-preview",
+          model: "gemini-3-pro-high",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.3, // Baixa temperatura para queries consistentes
           max_tokens: 500,
@@ -389,7 +389,7 @@ O trabalho do seu briefing é PURAMENTE INFORMACIONAL, você apenas explica o co
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-3-pro-preview",
+          model: "gemini-3-pro-high",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.3,
           max_tokens: 2000,
@@ -477,7 +477,7 @@ FOQUE em informações que serão úteis para lembrar em sessões futuras.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-3-pro-preview",
+          model: "gemini-3-pro-high",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.2,
           max_tokens: 500,
@@ -549,7 +549,7 @@ Comece diretamente com os eventos, sem introdução.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-3-pro-preview",
+          model: "gemini-3-pro-high",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.4,
           max_tokens: 400,
