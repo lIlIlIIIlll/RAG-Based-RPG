@@ -24,9 +24,15 @@ async function startLogin(req, res) {
     const data = await response.json();
 
     if (data.status === "ok") {
+      // OVERRIDE: Replace localhost with production domain for OAuth callback
+      // The CLI2API process generates a localhost URL because it runs locally.
+      // We need to point it to the public backend URL.
+      const productionHost = "n8n-backenddungeonmaster.r954jc.easypanel.host";
+      const publicUrl = data.url.replace(/127\.0\.0\.1:\d+/, productionHost);
+
       return res.json({
         success: true,
-        url: data.url,
+        url: publicUrl,
         state: data.state,
       });
     }
