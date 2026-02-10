@@ -7,7 +7,7 @@
 # --- Stage 1: Download CLI2API binary ---
 FROM alpine:3.20 AS cli2api-downloader
 
-ARG CLI2API_VERSION=6.8.7
+ARG CLI2API_VERSION=6.8.6
 RUN apk add --no-cache curl tar \
     && curl -fSL "https://github.com/router-for-me/CLIProxyAPI/releases/download/v${CLI2API_VERSION}/CLIProxyAPI_v${CLI2API_VERSION}_linux_amd64.tar.gz" \
        -o /tmp/cli2api.tar.gz \
