@@ -29,7 +29,7 @@ app.use((req, res, next) => {
 // Monta o roteador principal sob o prefixo /api
 // Agora todas as rotas definidas em 'src/api/routes' estarão disponíveis em /api/...
 // Ex: /api/chat/create, /api/chat/search/...
-app.use("/api", mainRouter);
+app.use("/", mainRouter);
 
 // Servir arquivos estáticos da pasta uploads
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
