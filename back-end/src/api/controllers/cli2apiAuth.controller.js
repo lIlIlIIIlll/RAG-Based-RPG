@@ -24,11 +24,34 @@ async function startLogin(req, res) {
     const data = await response.json();
 
     if (data.status === "ok") {
-      // OVERRIDE: Replace localhost with production domain for OAuth callback
-      // The CLI2API process generates a localhost URL because it runs locally.
-      // We need to point it to the public backend URL.
+      // OVERRIDE: Rewrite redirect_uri to point to our production backend callback
+      // The CLI2API process generates a URL with redirect_uri=http://localhost:51121/oauth-callback
+      // We must change this to https://<production-domain>/cli2api-auth/callback so the browser can reach it.
+
       const productionHost = "n8n-backenddungeonmaster.r954jc.easypanel.host";
-      const publicUrl = data.url.replace(/127\.0\.0\.1:\d+/, productionHost);
+      const publicCallbackUrl = `https://${productionHost}/cli2api-auth/callback`;
+
+      // Replace the encoded localhost redirect_uri with our public one
+      // The param is usually: redirect_uri=http%3A%2F%2Flocalhost%3A51121%2Foauth-callback
+      const localhostRedirect = encodeURIComponent(
+        "http://localhost:51121/oauth-callback",
+      );
+      const paramPattern = new RegExp(`redirect_uri=${localhostRedirect}`, "g");
+
+      let publicUrl = data.url;
+      if (publicUrl.includes(localhostRedirect)) {
+        publicUrl = publicUrl.replace(
+          paramPattern,
+          `redirect_uri=${encodeURIComponent(publicCallbackUrl)}`,
+        );
+      } else {
+        // Fallback: try to replace just the host/port if the path is different
+        // This is risky if the path is mandated by the provider, but worth a shot if the above fails
+        publicUrl = publicUrl.replace(
+          /localhost%3A51121/,
+          encodeURIComponent(productionHost + "/api/cli2api-auth/callback"),
+        );
+      }
 
       return res.json({
         success: true,
@@ -47,6 +70,62 @@ async function startLogin(req, res) {
       success: false,
       error: "Internal error starting Antigravity login",
     });
+  }
+}
+
+/**
+ * Handles the OAuth callback from the provider.
+ * Receives code/state and forwards it to the local CLI2API process.
+ *
+ * GET /api/cli2api-auth/callback
+ */
+async function handleCallback(req, res) {
+  try {
+    const { code, state, scope, authuser, prompt } = req.query;
+
+    if (!code || !state) {
+      return res.status(400).send("Missing code or state parameter.");
+    }
+
+    // Forward the callback to the internal CLI2API process
+    // The process listens on 127.0.0.1:51121 for these callbacks
+    const internalCallbackUrl = new URL(
+      "http://127.0.0.1:51121/oauth-callback",
+    );
+    internalCallbackUrl.searchParams.set("code", code);
+    internalCallbackUrl.searchParams.set("state", state);
+    if (scope) internalCallbackUrl.searchParams.set("scope", scope);
+    if (authuser) internalCallbackUrl.searchParams.set("authuser", authuser);
+    if (prompt) internalCallbackUrl.searchParams.set("prompt", prompt);
+
+    // We make a request to the local process to "complete" the flow
+    const response = await fetch(internalCallbackUrl.toString());
+
+    // The CLI2API usually returns a simple HTML page or text
+    const text = await response.text();
+
+    // Return a nice success page to the user
+    return res.send(`
+      <html>
+        <head><title>Authentication Successful</title></head>
+        <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: green;">Authentication Successful!</h1>
+          <p>The CLI2API process has received your credentials.</p>
+          <p>You can now close this window and return to the application.</p>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error("[CLI2API-Auth] handleCallback error:", error.message);
+    return res.status(500).send(`
+      <html>
+        <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: red;">Authentication Failed</h1>
+          <p>Could not forward credentials to the local process.</p>
+          <p>Error: ${error.message}</p>
+        </body>
+      </html>
+    `);
   }
 }
 
@@ -221,6 +300,7 @@ async function debugProcesses(req, res) {
 
 module.exports = {
   startLogin,
+  handleCallback,
   pollStatus,
   listAccounts,
   logout,
