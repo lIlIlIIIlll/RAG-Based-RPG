@@ -13,7 +13,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # Build arg for API URL (set in Easypanel env vars)
-ARG VITE_API_BASE_URL=/api
+ARG VITE_API_BASE_URL=https://n8n-backenddungeonmaster.r954jc.easypanel.host
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 COPY . .
