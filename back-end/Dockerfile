@@ -18,6 +18,9 @@ RUN apk add --no-cache curl tar \
 # --- Stage 2: Production image ---
 FROM node:20-slim
 
+# CA certificates are required by the CLI2API Go binary for TLS (Google OAuth, GitHub, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install CLI2API binary from download stage
