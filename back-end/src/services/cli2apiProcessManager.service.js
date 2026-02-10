@@ -116,7 +116,7 @@ oauth-model-alias:
       alias: "gemini-2.5-computer-use-preview-10-2025"
     - name: "gemini-3-pro-image"
       alias: "gemini-3-pro-image-preview"
-    - name: "gemini-3-pro-preview"
+    - name: "gemini-3-pro-high"
       alias: "gemini-3-pro-preview"
     - name: "gemini-3-flash"
       alias: "gemini-3-flash-preview"
