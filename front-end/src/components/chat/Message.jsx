@@ -3,8 +3,8 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import { User, Bot, Copy, Edit2, Trash2, RefreshCw, Check, GitBranch } from "lucide-react";
-import FileCard from "./FileCard.jsx";
-import DiceResult from "./DiceResult.jsx";
+import FileCard from "../files/FileCard.jsx";
+import DiceResult from "../dice/DiceResult.jsx";
 import styles from "./Message.module.css";
 
 const Message = ({

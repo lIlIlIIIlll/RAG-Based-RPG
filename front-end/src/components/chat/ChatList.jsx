@@ -3,12 +3,12 @@ import { MessageSquare, Trash2, Plus, Settings, ChevronLeft, ChevronRight, Edit2
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getAllChats, deleteChat, renameChat, importChat, searchGlobalChats } from "../services/api";
-import { useToast } from "../context/ToastContext";
-import { useConfirmation } from "../context/ConfirmationContext";
-import ConfigModal from "./ConfigModal.jsx";
-import ApiKeyModal from "./ApiKeyModal.jsx";
-import CinematicLoading from "./CinematicLoading.jsx";
+import { getAllChats, deleteChat, renameChat, importChat, searchGlobalChats } from "../../services/api";
+import { useToast } from "../../context/ToastContext";
+import { useConfirmation } from "../../context/ConfirmationContext";
+import ConfigModal from "../config/ConfigModal.jsx";
+import ApiKeyModal from "../config/ApiKeyModal.jsx";
+import CinematicLoading from "../ui/CinematicLoading.jsx";
 import styles from "./ChatList.module.css";
 
 const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {

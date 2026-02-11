@@ -1,8 +1,8 @@
 // src/components/ConfigModal/ConfigModal.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { X, Save, ExternalLink, Check, AlertCircle, Zap, Search, Key, Settings, Cpu, Wrench, LogIn, LogOut, RefreshCw, Loader2, User } from "lucide-react";
-import { apiClient, updateChatConfig, cli2apiStartLogin, cli2apiPollStatus, cli2apiListAccounts, cli2apiLogout } from "../services/api";
-import { useToast } from "../context/ToastContext";
+import { apiClient, updateChatConfig, cli2apiStartLogin, cli2apiPollStatus, cli2apiListAccounts, cli2apiLogout } from "../../services/api";
+import { useToast } from "../../context/ToastContext";
 import styles from "./ConfigModal.module.css";
 
 // Modelos populares do OpenRouter

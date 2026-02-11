@@ -1,13 +1,13 @@
 // src/components/ChatWindow.jsx
 import React, { useRef, useState, useEffect } from "react";
 import Message from "./Message.jsx";
-import LoadingIndicator from "./LoadingIndicator.jsx";
-import FileCard from "./FileCard.jsx";
-import PDFOptionsModal from "./PDFOptionsModal.jsx";
+import LoadingIndicator from "../ui/LoadingIndicator.jsx";
+import FileCard from "../files/FileCard.jsx";
+import PDFOptionsModal from "../files/PDFOptionsModal.jsx";
 import { Send, Paperclip, Trash2, X, CheckSquare, Dice6 } from "lucide-react";
 import styles from "./ChatWindow.module.css";
 import { Virtuoso } from "react-virtuoso";
-import { vectorizePDF } from "../services/api.js";
+import { vectorizePDF } from "../../services/api.js";
 
 const ChatWindow = ({
     messages,

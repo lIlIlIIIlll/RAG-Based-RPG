@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ChatList from "./ChatList.jsx";
 import ChatView from "./ChatView.jsx";
-import { createChat } from "../services/api.js";
-import { useToast } from "../context/ToastContext";
-import { useOpenRouterAuth } from "../hooks/useOpenRouterAuth.js";
+import { createChat } from "../../services/api.js";
+import { useToast } from "../../context/ToastContext";
+import { useOpenRouterAuth } from "../../hooks/useOpenRouterAuth.js";
 import { MessageSquarePlus, Terminal } from "lucide-react";
 import styles from "./ChatInterface.module.css";
 

@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Terminal, ArrowRight, User, Mail, Lock, Sparkles } from 'lucide-react';
-import * as api from '../services/api';
+import * as api from '../../services/api';
 import styles from './AuthPage.module.css';
-import CinematicLoading from './CinematicLoading';
+import CinematicLoading from '../ui/CinematicLoading';
 
 const AuthPage = () => {
     const [isLogin, setIsLogin] = useState(true);

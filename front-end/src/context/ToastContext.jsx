@@ -1,6 +1,6 @@
 // src/context/ToastContext.jsx
 import React, { createContext, useContext, useState, useCallback } from "react";
-import styles from "./Toast.module.css";
+import styles from "../styles/Toast.module.css";
 
 const ToastContext = createContext();
 

@@ -1,9 +1,9 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import AuthPage from "./components/AuthPage.jsx";
-import ChatInterface from "./components/ChatInterface.jsx";
-import ProtectedRoute from "./components/ProtectedRoute.jsx";
-import PublicRoute from "./components/PublicRoute.jsx";
+import AuthPage from "./components/auth/AuthPage.jsx";
+import ChatInterface from "./components/chat/ChatInterface.jsx";
+import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
+import PublicRoute from "./components/auth/PublicRoute.jsx";
 import { ToastProvider } from "./context/ToastContext.jsx";
 import { ConfirmationProvider } from "./context/ConfirmationContext.jsx";
 

@@ -5,7 +5,7 @@
 const {
   convertHistoryToOpenAI,
   convertToolsToOpenAI,
-} = require("./openrouter.service");
+} = require("./openrouter.provider");
 
 // --- Helper de Retry e Timeout ---
 

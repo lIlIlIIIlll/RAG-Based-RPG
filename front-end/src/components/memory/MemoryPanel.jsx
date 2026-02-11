@@ -6,9 +6,9 @@ import {
   Download, Upload, FileJson, CheckCircle, AlertCircle, Loader,
   Image, FileText, Wrench
 } from "lucide-react";
-import { apiClient, addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories, searchMemory } from "../services/api";
-import { useToast } from "../context/ToastContext";
-import { useConfirmation } from "../context/ConfirmationContext";
+import { apiClient, addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories, searchMemory } from "../../services/api";
+import { useToast } from "../../context/ToastContext";
+import { useConfirmation } from "../../context/ConfirmationContext";
 import styles from "./MemoryPanel.module.css";
 
 const MemoryPanel = ({ chatToken, vectorMemory }) => {

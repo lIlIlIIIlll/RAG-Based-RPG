@@ -4,8 +4,8 @@ const { Index } = require("@lancedb/lancedb");
 const path = require("path");
 const fs = require("fs");
 const config = require("../config");
-const { chatMessageSchema } = require("../config/lancedb.schema");
-const { hebbianAssociationSchema } = require("../config/hebbian.schema");
+const { chatMessageSchema } = require("./lancedb.schema");
+const { hebbianAssociationSchema } = require("./hebbian.schema");
 
 const dbPath = path.join(process.cwd(), config.dbPath);
 

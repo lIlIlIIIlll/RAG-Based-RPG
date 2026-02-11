@@ -1,7 +1,7 @@
 // src/api/controllers/cli2apiAuth.controller.js
 // Proxies Antigravity OAuth requests to the user's dedicated CLI2API instance.
 
-const processManager = require("../../services/cli2apiProcessManager.service");
+const processManager = require("../../providers/cli2api.processManager");
 
 /**
  * Starts an Antigravity OAuth login flow for the current user.

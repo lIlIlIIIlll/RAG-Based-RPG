@@ -2,14 +2,14 @@
 const { v4: uuidv4 } = require("uuid");
 const fs = require("fs");
 const path = require("path");
-const lanceDBService = require("./lancedb.service");
+const lanceDBService = require("../database/lancedb.service");
 const chatStorage = require("./chatStorage.service");
-const geminiService = require("./gemini.service");
-const openrouterService = require("./openrouter.service");
-const cerebrasService = require("./cerebras.service");
-const cli2apiService = require("./cli2api.service");
-const processManager = require("./cli2apiProcessManager.service");
-const googleProvider = require("./google.provider");
+const geminiService = require("../providers/gemini.provider");
+const openrouterService = require("../providers/openrouter.provider");
+const cerebrasService = require("../providers/cerebras.provider");
+const cli2apiService = require("../providers/cli2api.provider");
+const processManager = require("../providers/cli2api.processManager");
+const googleProvider = require("../providers/google.provider");
 const config = require("../config");
 
 // Função auxiliar para contar palavras

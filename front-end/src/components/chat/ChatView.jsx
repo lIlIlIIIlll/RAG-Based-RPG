@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ChatWindow from "./ChatWindow.jsx";
-import MemoryPanel from "./MemoryPanel.jsx";
-import FilePreviewModal from "./FilePreviewModal.jsx";
-import log from "../services/logger.js";
+import MemoryPanel from "../memory/MemoryPanel.jsx";
+import FilePreviewModal from "../files/FilePreviewModal.jsx";
+import log from "../../services/logger.js";
 import {
   generateChatResponse,
   editMemory,
@@ -13,13 +13,13 @@ import {
   apiClient,
   deleteMemories,
   branchChat
-} from "../services/api.js";
-import ConfirmationModal from "./ConfirmationModal.jsx";
-import { useToast } from "../context/ToastContext";
-import { useConfirmation } from "../context/ConfirmationContext";
+} from "../../services/api.js";
+import ConfirmationModal from "../ui/ConfirmationModal.jsx";
+import { useToast } from "../../context/ToastContext";
+import { useConfirmation } from "../../context/ConfirmationContext";
 import styles from "./ChatView.module.css";
-import DiceAnimation from "./DiceAnimation.jsx";
-import { parseDiceCommand, rollDice, formatDiceResult, findAndParseDiceCommand } from "../utils/dice.js";
+import DiceAnimation from "../dice/DiceAnimation.jsx";
+import { parseDiceCommand, rollDice, formatDiceResult, findAndParseDiceCommand } from "../../utils/dice.js";
 
 const ChatView = ({ chatToken }) => {
   const [messages, setMessages] = useState([]);
