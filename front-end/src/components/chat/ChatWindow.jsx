@@ -314,12 +314,12 @@ const ChatWindow = ({
                     </div>
                 ) : (
                     <Virtuoso
-                        style={{ height: "100%", width: "100%" }}
+                        style={{ height: "100%", width: "100%", overflowX: 'hidden' }}
                         data={messages}
                         initialTopMostItemIndex={messages.length - 1}
                         followOutput="smooth"
                         itemContent={(index, msg) => (
-                            <div style={{ padding: "0 100px 24px 60px" }}>
+                            <div className={styles.messageItemWrapper}>
                                 <Message
                                     key={msg.messageid || index}
                                     msg={msg}
@@ -342,7 +342,7 @@ const ChatWindow = ({
                         components={{
                             Header: () => <div style={{ height: "40px" }} />,
                             Footer: () => (
-                                <div style={{ paddingBottom: "120px", paddingLeft: "40px", paddingRight: "40px" }}>
+                                <div style={{ paddingBottom: "20px", paddingLeft: "40px", paddingRight: "40px" }}>
                                     {isLoading && (
                                         <div className={styles.loadingContainer}>
                                             <div className={styles.typingIndicator}>

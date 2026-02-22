@@ -1,33 +1,21 @@
-/* src/components/LoadingIndicator/LoadingIndicator.module.css */
+/* src/components/LoadingIndicator.module.css */
 
-/*
- * Container para os pontos.
- * Usa flexbox para alinhar os pontos horizontalmente.
- */
 .typingContainer {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px; /* Espaçamento entre os pontos */
+  gap: 6px;
   padding: 10px 0;
 }
 
-/*
- * Estilo base para cada ponto.
- * Define a cor, forma e tamanho.
- */
 .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%; /* Faz o ponto ser um círculo perfeito */
-  background-color: var(--text-secondary);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--text-tertiary);
   animation: typingAnimation 1.2s infinite ease-in-out;
 }
 
-/*
- * Aplica um atraso de animação diferente para cada ponto,
- * criando o efeito de onda.
- */
 .dot:nth-child(2) {
   animation-delay: 0.2s;
 }
@@ -36,17 +24,13 @@
   animation-delay: 0.4s;
 }
 
-/*
- * Keyframes da animação.
- * Move os pontos para cima e para baixo (eixo Y).
- */
 @keyframes typingAnimation {
   0%, 80%, 100% {
     transform: translateY(0);
-    opacity: 0.5;
+    opacity: 0.4;
   }
   40% {
-    transform: translateY(-8px); /* Move o ponto para cima */
+    transform: translateY(-6px);
     opacity: 1;
   }
 }

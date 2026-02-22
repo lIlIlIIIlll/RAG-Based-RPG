@@ -862,7 +862,7 @@ async function handleChatGeneration(
   historyRecords.sort((a, b) => a.createdAt - b.createdAt);
 
   // Pega últimas 15 mensagens para contexto imediato
-  const RECENT_HISTORY_LIMIT = 15;
+  const RECENT_HISTORY_LIMIT = 20;
   let startIndex = Math.max(0, historyRecords.length - RECENT_HISTORY_LIMIT);
   // Tenta garantir que começa com mensagem do usuário voltando um índice se necessário
   if (startIndex > 0 && historyRecords[startIndex].role === "model") {
@@ -1357,21 +1357,72 @@ async function handleChatGeneration(
   let finalSystemInstruction = systemInstruction;
 
   // === TWO-STAGE CONTEXT SYNTHESIS ===
-  // Sintetiza memórias brutas em um briefing coeso usando LLM
+  // Sintetiza memórias + sessão completa em um briefing coeso usando LLM
   let synthesizedContext = contextText;
   if (contextText && contextText.length > 0) {
     try {
-      const historyForSynthesis = recentHistory
+      // Usa TODAS as mensagens da sessão atual para dar visão completa ao sintetizador
+      const sessionMessagesForSynthesis = currentSessionMessages
         .map((r) => `${r.role}: ${r.text}`)
         .join("\n");
 
+      // Callback de busca vetorial para o agente contextualizador
+      const agentSearchFn = async (query) => {
+        const agentResults = [];
+        for (const collName of collectionsToSearch) {
+          try {
+            const results = await searchMessages(
+              chatToken,
+              collName,
+              query,
+              15,
+              googleApiKeys,
+            );
+            for (const r of results) {
+              agentResults.push(`[${collName.toUpperCase()}] ${r.text}`);
+            }
+          } catch (err) {
+            console.warn(
+              `[CLI2API-Agent] Erro ao buscar em ${collName}: ${err.message}`,
+            );
+          }
+        }
+        return agentResults.length > 0
+          ? agentResults.join("\n")
+          : "Nenhum resultado encontrado.";
+      };
+
+      // Busca memórias eternas (sempre injetadas, independente de relevância)
+      let eternalMemoriesText = "";
+      try {
+        const eternalMemories =
+          await lanceDBService.getEternalMemories(chatToken);
+        if (eternalMemories.length > 0) {
+          eternalMemoriesText = eternalMemories
+            .map((m) => `[${m.category?.toUpperCase() || "ETERNAL"}] ${m.text}`)
+            .join("\n");
+          console.log(
+            `[Service] ${eternalMemories.length} memória(s) eterna(s) carregada(s).`,
+          );
+        }
+      } catch (err) {
+        console.warn(
+          `[Service] Erro ao buscar memórias eternas: ${err.message}`,
+        );
+      }
+
       synthesizedContext = await cli2apiService.generateContextSummary(
-        historyForSynthesis,
+        sessionMessagesForSynthesis,
         contextText,
-        cli2apiOptions,
+        searchQueryText || "",
+        {
+          ...cli2apiOptions,
+          searchFn: agentSearchFn,
+          eternalMemoriesText,
+        },
       );
       console.log(
-        `[Service] Contexto sintetizado via LLM (${synthesizedContext.length} chars).`,
+        `[Service] Contexto sintetizado via LLM (${synthesizedContext.length} chars, ${currentSessionMessages.length} msgs da sessão).`,
       );
     } catch (error) {
       console.warn(

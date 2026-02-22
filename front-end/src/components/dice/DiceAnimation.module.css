@@ -1,288 +1,178 @@
+/* src/components/DiceAnimation.module.css */
+
 .overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.9);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    animation: fadeIn 0.3s ease-out;
-    backdrop-filter: blur(8px);
-}
-
-.container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2rem;
-}
-
-.diceLabel {
-    font-size: 1.2rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    opacity: 0.7;
-}
-
-.diceContainer {
-    display: flex;
-    gap: 2rem;
-    flex-wrap: wrap;
-    justify-content: center;
-    perspective: 1000px;
-}
-
-/* Base Die Styles */
-.die {
-    width: 100px;
-    height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    transition: all 0.3s ease;
-}
-
-.dieValue {
-    font-family: var(--font-mono);
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--accent-primary);
-    z-index: 2;
-    text-shadow: 0 0 10px rgba(212, 160, 23, 0.5);
-}
-
-/* D4 - Tetrahedron (Triangle) */
-.d4 {
-    width: 90px;
-    height: 78px;
-    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-    background: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%);
-    border: none;
-}
-
-.d4::before {
-    content: '';
-    position: absolute;
-    inset: 2px;
-    clip-path: polygon(50% 3%, 3% 97%, 97% 97%);
-    background: linear-gradient(180deg, #1a1a1a 0%, #050505 100%);
-}
-
-.d4 .dieValue {
-    margin-top: 20px;
-    font-size: 1.8rem;
-}
-
-/* D6 - Cube (Square) */
-.d6 {
-    border-radius: 12px;
-    background: linear-gradient(135deg, #2a2a2a 0%, #0a0a0a 100%);
-    border: 2px solid rgba(212, 160, 23, 0.3);
-}
-
-/* D8 - Octahedron (Diamond) */
-.d8 {
-    width: 85px;
-    height: 85px;
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-    background: linear-gradient(135deg, #2a2a2a 0%, #0a0a0a 100%);
-}
-
-.d8::before {
-    content: '';
-    position: absolute;
-    inset: 3px;
-    clip-path: polygon(50% 4%, 96% 50%, 50% 96%, 4% 50%);
-    background: linear-gradient(135deg, #1a1a1a 0%, #050505 100%);
-}
-
-/* D10 - Pentagonal shape */
-.d10 {
-    width: 90px;
-    height: 95px;
-    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
-    background: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%);
-}
-
-.d10::before {
-    content: '';
-    position: absolute;
-    inset: 3px;
-    clip-path: polygon(50% 4%, 96% 40%, 80% 96%, 20% 96%, 4% 40%);
-    background: linear-gradient(180deg, #1a1a1a 0%, #050505 100%);
-}
-
-/* D12 - Dodecahedron (Pentagon-like) */
-.d12 {
-    width: 95px;
-    height: 90px;
-    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    background: linear-gradient(135deg, #2a2a2a 0%, #0a0a0a 100%);
-}
-
-.d12::before {
-    content: '';
-    position: absolute;
-    inset: 3px;
-    clip-path: polygon(50% 4%, 96% 27%, 96% 73%, 50% 96%, 4% 73%, 4% 27%);
-    background: linear-gradient(135deg, #1a1a1a 0%, #050505 100%);
-}
-
-/* D20 - Icosahedron (Complex polygon) */
-.d20 {
-    width: 100px;
-    height: 100px;
-    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-    background: linear-gradient(135deg, #3a2a1a 0%, #1a0a00 100%);
-}
-
-.d20::before {
-    content: '';
-    position: absolute;
-    inset: 3px;
-    clip-path: polygon(50% 4%, 90% 27%, 90% 73%, 50% 96%, 10% 73%, 10% 27%);
-    background: linear-gradient(135deg, #2a1a0a 0%, #0a0500 100%);
-}
-
-.d20 .dieValue {
-    font-size: 2.2rem;
-    color: #ffd700;
-}
-
-/* D100 - Similar to D10 but larger */
-.d100 {
-    width: 100px;
-    height: 105px;
-    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
-    background: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%);
-}
-
-.d100 .dieValue {
-    font-size: 1.6rem;
-}
-
-/* Animations */
-.rolling {
-    animation: shake 0.5s infinite, glow 0.3s infinite alternate;
-}
-
-.landed {
-    animation: land 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-.landed.d6 {
-    border-color: var(--accent-primary);
-    box-shadow: 0 0 40px rgba(212, 160, 23, 0.4);
-}
-
-.landed.d4,
-.landed.d8,
-.landed.d10,
-.landed.d12,
-.landed.d20,
-.landed.d100 {
-    filter: drop-shadow(0 0 20px rgba(212, 160, 23, 0.5));
-}
-
-.totalResult {
-    font-size: 4rem;
-    font-weight: 800;
-    color: var(--accent-primary);
-    text-shadow: 0 0 30px rgba(212, 160, 23, 0.6);
-    opacity: 0;
-    transform: translateY(20px);
-    animation: slideUpFade 0.5s ease-out 0.5s forwards;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease-out;
+  cursor: pointer;
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-@keyframes shake {
-    0% {
-        transform: translate(1px, 1px) rotate(0deg);
-    }
-
-    10% {
-        transform: translate(-1px, -2px) rotate(-2deg);
-    }
-
-    20% {
-        transform: translate(-3px, 0px) rotate(2deg);
-    }
-
-    30% {
-        transform: translate(3px, 2px) rotate(0deg);
-    }
-
-    40% {
-        transform: translate(1px, -1px) rotate(2deg);
-    }
-
-    50% {
-        transform: translate(-1px, 2px) rotate(-2deg);
-    }
-
-    60% {
-        transform: translate(-3px, 1px) rotate(0deg);
-    }
-
-    70% {
-        transform: translate(3px, 1px) rotate(-2deg);
-    }
-
-    80% {
-        transform: translate(-1px, -1px) rotate(2deg);
-    }
-
-    90% {
-        transform: translate(1px, 2px) rotate(0deg);
-    }
-
-    100% {
-        transform: translate(1px, -2px) rotate(-2deg);
-    }
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
 }
 
-@keyframes glow {
-    from {
-        filter: drop-shadow(0 0 5px rgba(212, 160, 23, 0.3));
-    }
-
-    to {
-        filter: drop-shadow(0 0 15px rgba(212, 160, 23, 0.6));
-    }
+/* Dice Label */
+.diceLabel {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
-@keyframes land {
-    0% {
-        transform: scale(0.8);
-    }
-
-    50% {
-        transform: scale(1.15);
-    }
-
-    100% {
-        transform: scale(1);
-    }
+/* Dice Container */
+.diceContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px;
 }
 
-@keyframes slideUpFade {
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+/* Single Dice */
+.die {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.dieValue {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+
+/* Dice Shapes */
+.d4 {
+  background: linear-gradient(135deg, #FF6B6B, #EE5A24);
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  width: 76px;
+  height: 72px;
+}
+
+.d6 {
+  background: linear-gradient(135deg, #54A0FF, #2E86DE);
+  border-radius: 12px;
+}
+
+.d8 {
+  background: linear-gradient(135deg, #5F27CD, #341F97);
+  clip-path: polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%);
+  width: 76px;
+  height: 76px;
+}
+
+.d10 {
+  background: linear-gradient(135deg, #10AC84, #0A8C6B);
+  clip-path: polygon(50% 0%, 95% 40%, 80% 100%, 20% 100%, 5% 40%);
+  width: 76px;
+  height: 76px;
+}
+
+.d12 {
+  background: linear-gradient(135deg, #F368E0, #C44CC0);
+  clip-path: polygon(50% 0%, 85% 15%, 100% 50%, 85% 85%, 50% 100%, 15% 85%, 0% 50%, 15% 15%);
+  width: 78px;
+  height: 78px;
+}
+
+.d20 {
+  background: linear-gradient(135deg, #FF9F43, #EE5A24);
+  clip-path: polygon(50% 0%, 85% 15%, 100% 50%, 85% 85%, 50% 100%, 15% 85%, 0% 50%, 15% 15%);
+  width: 84px;
+  height: 84px;
+}
+
+.d100 {
+  background: linear-gradient(135deg, #FFD700, #F0A500);
+  border-radius: 50%;
+  width: 88px;
+  height: 88px;
+}
+
+.d100 .dieValue {
+  font-size: 22px;
+}
+
+/* Rolling Animation */
+.rolling {
+  animation: diceRoll 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes diceRoll {
+  0% {
+    transform: rotate(-12deg) scale(0.92);
+    filter: blur(1px);
+  }
+  100% {
+    transform: rotate(12deg) scale(1.08);
+    filter: blur(1px);
+  }
+}
+
+/* Landed Animation */
+.landed {
+  animation: diceLand 0.5s var(--ease-spring) forwards;
+  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.15));
+}
+
+@keyframes diceLand {
+  0% {
+    transform: scale(1.3) rotate(10deg);
+  }
+  50% {
+    transform: scale(0.9) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Total Result */
+.totalResult {
+  font-family: var(--font-mono);
+  font-size: 56px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+  animation: totalReveal 0.5s var(--ease-spring);
+}
+
+@keyframes totalReveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }

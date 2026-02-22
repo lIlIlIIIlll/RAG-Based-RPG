@@ -1,18 +1,17 @@
 // src/components/MemoryPanel.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Search, Plus, Edit2, Save, X, Trash2,
   Database, Brain, History, ChevronRight, ChevronLeft,
   Download, Upload, FileJson, CheckCircle, AlertCircle, Loader,
-  Image, FileText, Wrench
+  Image, FileText, Wrench, Pin
 } from "lucide-react";
-import { apiClient, addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories, searchMemory } from "../../services/api";
+import { apiClient, addMemory, editMemory, deleteMessage, getMemoryStats, exportMemories, importMemories, searchMemory, toggleEternalMemory } from "../../services/api";
 import { useToast } from "../../context/ToastContext";
 import { useConfirmation } from "../../context/ConfirmationContext";
 import styles from "./MemoryPanel.module.css";
 
-const MemoryPanel = ({ chatToken, vectorMemory }) => {
-  const [collapsed, setCollapsed] = useState(false);
+const MemoryPanel = ({ chatToken, vectorMemory, collapsed, onToggleCollapse, panelRef }) => {
   const [activeTab, setActiveTab] = useState("historico");
   const [localVectorMemory, setLocalVectorMemory] = useState(vectorMemory || []);
 
@@ -53,6 +52,26 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
   const [isSavingMediaDescription, setIsSavingMediaDescription] = useState(false);
 
   const fileInputRef = useRef(null);
+  const tabsContainerRef = useRef(null);
+  const tabRefs = useRef({});
+  const [indicatorStyle, setIndicatorStyle] = useState({});
+
+  const updateIndicator = useCallback(() => {
+    const activeButton = tabRefs.current[activeTab];
+    const container = tabsContainerRef.current;
+    if (activeButton && container) {
+      const containerRect = container.getBoundingClientRect();
+      const buttonRect = activeButton.getBoundingClientRect();
+      setIndicatorStyle({
+        left: buttonRect.left - containerRect.left,
+        width: buttonRect.width,
+      });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    updateIndicator();
+  }, [activeTab, updateIndicator]);
 
   const { addToast } = useToast();
   const { confirm } = useConfirmation();
@@ -136,6 +155,27 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
       addToast({ type: "success", message: "Memória removida." });
     } catch (err) {
       addToast({ type: "error", message: "Erro ao remover memória." });
+    }
+  };
+
+  const handleToggleEternal = async (item) => {
+    try {
+      const result = await toggleEternalMemory(chatToken, item.messageid);
+      const update = (list) =>
+        list.map(m =>
+          m.messageid === item.messageid
+            ? { ...m, eternal: result.eternal ? "true" : null }
+            : m
+        );
+      setLocalVectorMemory(prev => update(prev));
+      addToast({
+        type: "success",
+        message: result.eternal
+          ? "Memória fixada como permanente."
+          : "Memória desmarcada como permanente.",
+      });
+    } catch (err) {
+      addToast({ type: "error", message: "Erro ao alternar memória eterna." });
     }
   };
 
@@ -345,21 +385,30 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
     }
   };
 
-  // Use search results if available, otherwise filter local memory
+  // All memories for the active tab (RAG context + eternal)
+  const memoriesForTab = localVectorMemory.filter(
+    (item) => item.category === activeTab
+  );
+
+  // Eternal memories as fallback when no RAG context memories exist
+  const eternalMemoriesForTab = memoriesForTab.filter(
+    (item) => item.eternal === "true"
+  );
+
+  // Priority: search results > all tab memories > eternal-only fallback
   const listToRender = searchResults !== null
     ? searchResults
-    : localVectorMemory.filter(item => {
-      const matchesTab = item.category === activeTab;
-      return matchesTab;
-    });
+    : memoriesForTab.length > 0
+      ? memoriesForTab
+      : eternalMemoriesForTab;
 
   return (
-    <div className={`${styles.memoryPanelContainer} ${collapsed ? styles.collapsed : ""}`}>
+    <div ref={panelRef} className={`${styles.memoryPanelContainer} ${collapsed ? styles.collapsed : ""}`}>
 
       {/* Botão Toggle Lateral (Fora do wrapper para ficar visível quando colapsado) */}
       <button
         className={styles.collapseButton}
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={onToggleCollapse}
         title={collapsed ? "Expandir Memória" : "Ocultar Memória"}
       >
         {collapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
@@ -424,10 +473,15 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
             />
           </div>
 
-          <div className={styles.tabs}>
+          <div className={styles.tabs} ref={tabsContainerRef}>
+            <div
+              className={styles.tabIndicator}
+              style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+            />
             {collections.map((c) => (
               <button
                 key={c.id}
+                ref={(el) => (tabRefs.current[c.id] = el)}
                 className={`${styles.tab} ${activeTab === c.id ? styles.active : ""}`}
                 onClick={() => {
                   setActiveTab(c.id);
@@ -462,7 +516,7 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
             <div className={styles.emptyMessage}>
               {searchQuery
                 ? "Nenhum resultado encontrado."
-                : "Nenhuma memória relevante recuperada."}
+                : "Pesquise uma memória"}
             </div>
           ) : (
             // Agrupa por categoria
@@ -491,10 +545,13 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                       item.messageid ? `ID: ${String(item.messageid).slice(0, 8)}...` : null
                     ].filter(Boolean).join(' | ');
 
+                    const isEternal = item.eternal === "true";
+                    const canToggleEternal = category === "fatos" || category === "conceitos";
+
                     return (
                       <div
                         key={item.messageid || index}
-                        className={styles.memoryItem}
+                        className={`${styles.memoryItem} ${isEternal ? styles.eternalItem : ""}`}
                         title={tooltipText}
                       >
                         {isEditing ? (
@@ -560,6 +617,15 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
 
                               {item.messageid && (
                                 <div className={styles.itemActions}>
+                                  {canToggleEternal && (
+                                    <button
+                                      onClick={() => handleToggleEternal(item)}
+                                      className={`${styles.actionBtn} ${isEternal ? styles.eternalActive : ""}`}
+                                      title={isEternal ? "Remover memória permanente" : "Fixar como memória permanente"}
+                                    >
+                                      <Pin size={12} />
+                                    </button>
+                                  )}
                                   <button
                                     onClick={() => item.hasMedia ? handleOpenMediaModal(item) : startEditing(item)}
                                     className={styles.actionBtn}
@@ -581,13 +647,22 @@ const MemoryPanel = ({ chatToken, vectorMemory }) => {
                             {/* Debug info para calibração do RAG */}
                             {item.debug && (
                               <div className={styles.debugInfo}>
-                                <span>Orig: {item.debug.originalDistance?.toFixed(3)}</span>
-                                <span>Final: {item.debug.finalDistance?.toFixed(3)}</span>
+                                <span className={styles.debugPill}>
+                                  <span className={styles.debugLabel}>Orig</span>
+                                  <span className={styles.debugValue}>{item.debug.originalDistance?.toFixed(3)}</span>
+                                </span>
+                                <span className={styles.debugPill}>
+                                  <span className={styles.debugLabel}>Final</span>
+                                  <span className={styles.debugValue}>{item.debug.finalDistance?.toFixed(3)}</span>
+                                </span>
                                 {item.debug.adaptiveBoost > 0 && (
-                                  <span className={styles.debugBoost}>+{(item.debug.adaptiveBoost * 100).toFixed(0)}%</span>
+                                  <span className={`${styles.debugPill} ${styles.debugBoost}`}>
+                                    <span className={styles.debugLabel}>Boost</span>
+                                    <span className={styles.debugValue}>+{(item.debug.adaptiveBoost * 100).toFixed(0)}%</span>
+                                  </span>
                                 )}
                                 {item.debug.hasPenalty && (
-                                  <span className={styles.debugPenalty}>Penalty</span>
+                                  <span className={`${styles.debugPill} ${styles.debugPenalty}`}>Penalty</span>
                                 )}
                               </div>
                             )}

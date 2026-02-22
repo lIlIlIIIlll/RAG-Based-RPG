@@ -1,135 +1,99 @@
-.card {
-    display: flex;
-    align-items: center;
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0.5rem;
-    width: 200px;
-    position: relative;
-    transition: all 0.2s;
-    user-select: none;
+/* src/components/FileCard.module.css */
+
+.fileCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--fill-secondary);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  max-width: 200px;
 }
 
-.card:hover {
-    border-color: var(--primary-color);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+.fileCard:hover {
+  background: var(--fill);
+  border-color: var(--accent);
 }
 
-.clickable {
-    cursor: pointer;
+.fileIconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
-.clickable:active {
-    transform: translateY(0);
-}
-
-.iconContainer {
-    width: 40px;
-    height: 40px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 0.75rem;
-    flex-shrink: 0;
-    overflow: hidden;
-    /* Ensure image doesn't overflow */
-}
-
-.pdfIcon {
-    background: linear-gradient(135deg, #ff4d4d, #cc0000);
-}
-
-.imageIcon {
-    background: linear-gradient(135deg, #4d94ff, #0052cc);
-}
-
-.genericIcon {
-    background: linear-gradient(135deg, #808080, #4d4d4d);
-}
-
-.thumbnail {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.info {
-    flex: 1;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+.fileInfo {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .fileName {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fileType {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-top: 2px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
 }
 
 .removeBtn {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background-color: var(--bg-hover);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    opacity: 0;
-    transition: all 0.2s;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--bg-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s ease;
+  font-size: 10px;
 }
 
-.card:hover .removeBtn {
-    opacity: 1;
-}
-
-.removeBtn:hover {
-    background-color: #ff4d4d;
-    color: white;
-    border-color: #ff4d4d;
+.fileCard:hover .removeBtn {
+  opacity: 1;
 }
 
 .loadingOverlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  position: absolute;
+  inset: 0;
+  background: rgba(28, 28, 30, 0.85);
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--fill);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
 }
 
 @keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+  to { transform: rotate(360deg); }
 }

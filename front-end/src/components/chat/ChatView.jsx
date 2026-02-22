@@ -21,7 +21,7 @@ import styles from "./ChatView.module.css";
 import DiceAnimation from "../dice/DiceAnimation.jsx";
 import { parseDiceCommand, rollDice, formatDiceResult, findAndParseDiceCommand } from "../../utils/dice.js";
 
-const ChatView = ({ chatToken }) => {
+const ChatView = ({ chatToken, memoryPanelCollapsed, onToggleMemoryPanel, memoryPanelRef }) => {
   const [messages, setMessages] = useState([]);
   const [vectorMemory, setVectorMemory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -381,7 +381,7 @@ const ChatView = ({ chatToken }) => {
         onBranch={handleBranch}
         chatToken={chatToken}
       />
-      <MemoryPanel chatToken={chatToken} vectorMemory={vectorMemory} />
+      <MemoryPanel chatToken={chatToken} vectorMemory={vectorMemory} collapsed={memoryPanelCollapsed} onToggleCollapse={onToggleMemoryPanel} panelRef={memoryPanelRef} />
 
       {previewFile && (
         <FilePreviewModal

@@ -1,774 +1,317 @@
+/* src/components/CinematicLoading.module.css */
+
+/* ── Full-screen overlay ───────────────────────────────── */
 .overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: var(--bg-deep);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999;
-    animation: fadeIn 0.5s ease-out;
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5000;
+  animation: overlayFadeIn 0.4s ease-out;
 }
 
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.minimizing {
+  animation: overlayFadeOut 0.3s ease-in forwards;
+}
+
+@keyframes overlayFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ── Minimize button ───────────────────────────────────── */
+.minimizeBtn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 5001;
+}
+
+.minimizeBtn:hover {
+  color: var(--text-primary);
+  background: var(--fill);
+}
+
+/* ── Inner content ─────────────────────────────────────── */
 .content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2rem;
-    position: relative;
-    width: 100%;
-    max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  position: relative;
 }
 
-/* D20 Animation */
+/* ── D20 dice ──────────────────────────────────────────── */
 .d20Container {
-    position: relative;
-    width: 220px;
-    height: 260px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .d20Svg {
-    width: 100%;
-    height: 100%;
-    fill: none;
-    stroke: #ffffff;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
-    transform-origin: center;
-    transition: stroke 0.3s ease, filter 0.3s ease;
-}
-
-.d20Container.loading .d20Svg,
-.d20Container.anticipate-success .d20Svg,
-.d20Container.anticipate-error .d20Svg {
-    animation: shake 0.5s infinite;
+  width: 80px;
+  height: 80px;
 }
 
 .d20Outline {
-    fill: rgba(255, 255, 255, 0.1);
-    transition: fill 0.3s ease;
+  fill: none;
+  stroke: var(--text-tertiary);
+  stroke-width: 1.5;
 }
 
 .d20Inner {
-    opacity: 0.5;
+  fill: none;
+  stroke: var(--text-tertiary);
+  stroke-width: 1;
+  opacity: 0.5;
 }
 
 .d20Number {
-    fill: #ffffff;
-    font-family: var(--font-main);
-    font-size: 13px;
-    font-weight: 400;
-    text-anchor: middle;
-    opacity: 1;
-    transition: opacity 0.3s ease, fill 0.3s ease;
+  font-size: 22px;
+  font-weight: 700;
+  fill: var(--text-primary);
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-family: var(--font-mono, 'SF Mono', monospace);
 }
 
 .d20Glow {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, transparent 70%);
-    animation: pulseGlow 2s infinite ease-in-out;
-    z-index: -1;
-    opacity: 0.3;
-    /* White glow by default */
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 122, 255, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
 }
 
-/* Anticipation States */
-.d20Container.anticipate-success .d20Glow {
-    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-    animation: pulseFast 0.5s infinite ease-in-out;
-    opacity: 0.8;
+/* ── States ────────────────────────────────────────────── */
+/* Loading — slow spin */
+.loading .d20Svg {
+  animation: d20Spin 3s linear infinite;
 }
 
-.d20Container.anticipate-error .d20Glow {
-    background: radial-gradient(circle, rgba(255, 68, 68, 0.5) 0%, transparent 70%);
-    animation: pulseFast 0.5s infinite ease-in-out;
-    opacity: 0.8;
+@keyframes d20Spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
-/* Final States */
-.d20Container.success .d20Svg {
-    animation: landSuccess 0.5s ease-out forwards;
-    stroke: var(--accent-primary);
-    filter: drop-shadow(0 0 10px var(--accent-glow));
+/* Anticipation — shimmer pulse */
+.anticipate-success .d20Outline,
+.anticipate-error .d20Outline {
+  stroke: var(--accent);
+  animation: anticipatePulse 0.5s ease-in-out infinite alternate;
 }
 
-.d20Container.success .d20Number {
-    fill: var(--accent-primary);
+.anticipate-success .d20Glow,
+.anticipate-error .d20Glow {
+  opacity: 1;
 }
 
-.d20Container.success .d20Outline {
-    fill: rgba(10, 10, 10, 0.8);
+@keyframes anticipatePulse {
+  0%   { opacity: 0.6; }
+  100% { opacity: 1; }
 }
 
-.d20Container.success .d20Glow {
-    opacity: 1;
-    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-    animation: pulseGlow 2s infinite ease-in-out;
+/* Success — pop + green glow */
+.success .d20Outline {
+  stroke: var(--accent);
 }
 
-.d20Container.error .d20Svg {
-    animation: landError 0.5s ease-out forwards;
-    stroke: #ff4444;
-    filter: drop-shadow(0 0 10px rgba(255, 68, 68, 0.5));
+.success .d20Svg {
+  animation: successPop 0.5s var(--ease-spring);
 }
 
-.d20Container.error .d20Number {
-    fill: #ff4444;
+.success .d20Glow {
+  opacity: 1;
 }
 
-.d20Container.error .d20Outline {
-    fill: rgba(10, 10, 10, 0.8);
+@keyframes successPop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
 }
 
-.d20Container.error .d20Glow {
-    opacity: 1;
-    background: radial-gradient(circle, rgba(255, 68, 68, 0.3) 0%, transparent 70%);
-    animation: pulseGlow 2s infinite ease-in-out;
+/* Error — shake + red */
+.error .d20Outline {
+  stroke: var(--danger);
 }
 
-/* Text & Progress */
+.error .d20Svg {
+  animation: errorShake 0.4s ease-in-out;
+}
+
+.error .d20Glow {
+  opacity: 1;
+  background: radial-gradient(circle, rgba(255, 69, 58, 0.15) 0%, transparent 70%);
+}
+
+@keyframes errorShake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-8px); }
+  75%      { transform: translateX(8px); }
+}
+
+/* ── Text ──────────────────────────────────────────────── */
 .textContainer {
-    text-align: center;
-    animation: slideUp 0.8s ease-out;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
 }
 
 .title {
-    color: var(--text-primary);
-    font-family: var(--font-main);
-    font-size: 1.5rem;
-    font-weight: 300;
-    letter-spacing: 2px;
-    margin-bottom: 1rem;
-    text-transform: uppercase;
-    transition: color 0.3s ease;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .errorText {
-    color: #ff4444;
-    text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+  color: var(--danger);
 }
 
+/* ── Progress bar ──────────────────────────────────────── */
 .progressContainer {
-    width: 200px;
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 5px;
+  width: 220px;
 }
 
 .progressBar {
-    width: 100%;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-    overflow: hidden;
-    position: relative;
+  width: 220px;
+  height: 4px;
+  background: var(--fill);
+  border-radius: 2px;
+  overflow: hidden;
 }
 
 .progressFill {
-    height: 100%;
-    background: var(--accent-primary, #4a9eff);
-    border-radius: 2px;
-    transition: width 0.3s ease;
-    box-shadow: 0 0 10px var(--accent-glow, rgba(74, 158, 255, 0.5));
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease-out;
+  animation: indeterminate 1.8s ease-in-out infinite;
+}
+
+@keyframes indeterminate {
+  0%   { width: 0%; margin-left: 0; }
+  50%  { width: 60%; margin-left: 20%; }
+  100% { width: 0%; margin-left: 100%; }
+}
+
+/* ── Floating particles ────────────────────────────────── */
+.particles {
+  position: absolute;
+  inset: -40px;
+  pointer-events: none;
 }
 
 .particle {
-    position: absolute;
-    color: #ffffff;
-    opacity: 0;
-    animation: floatParticle 3s infinite ease-in-out;
-    transition: color 0.3s ease;
+  position: absolute;
+  color: var(--accent);
+  opacity: 0.3;
+  animation: float 4s ease-in-out infinite;
 }
 
-.d20Container.anticipate-success~.particles .particle,
-.d20Container.success~.particles .particle {
-    color: var(--accent-primary);
+.particle:nth-child(1) { top: 10%; left: 5%;  animation-delay: 0s; }
+.particle:nth-child(2) { top: 70%; left: 10%; animation-delay: 0.8s; }
+.particle:nth-child(3) { top: 20%; right: 5%; animation-delay: 1.6s; }
+.particle:nth-child(4) { top: 80%; right: 10%; animation-delay: 2.4s; }
+.particle:nth-child(5) { top: 45%; left: 50%; animation-delay: 3.2s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1);   opacity: 0.3; }
+  50%      { transform: translateY(-12px) scale(1.15); opacity: 0.6; }
 }
 
-.d20Container.anticipate-error~.particles .particle,
-.d20Container.error~.particles .particle {
-    color: #ff4444;
-}
-
-.particle:nth-child(1) {
-    top: -20%;
-    left: -20%;
-    animation-delay: 0s;
-}
-
-.particle:nth-child(2) {
-    top: 20%;
-    right: -30%;
-    animation-delay: 0.5s;
-}
-
-.particle:nth-child(3) {
-    bottom: -20%;
-    left: 30%;
-    animation-delay: 1s;
-}
-
-.particle:nth-child(4) {
-    bottom: 40%;
-    right: 40%;
-    animation-delay: 1.5s;
-}
-
-.particle:nth-child(5) {
-    top: -40%;
-    right: 10%;
-    animation-delay: 2s;
-}
-
-/* Animations */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes shake {
-    0% {
-        transform: translate(1px, 1px) rotate(0deg);
-    }
-
-    10% {
-        transform: translate(-1px, -2px) rotate(-1deg);
-    }
-
-    20% {
-        transform: translate(-3px, 0px) rotate(1deg);
-    }
-
-    30% {
-        transform: translate(3px, 2px) rotate(0deg);
-    }
-
-    40% {
-        transform: translate(1px, -1px) rotate(1deg);
-    }
-
-    50% {
-        transform: translate(-1px, 2px) rotate(-1deg);
-    }
-
-    60% {
-        transform: translate(-3px, 1px) rotate(0deg);
-    }
-
-    70% {
-        transform: translate(3px, 1px) rotate(-1deg);
-    }
-
-    80% {
-        transform: translate(-1px, -1px) rotate(1deg);
-    }
-
-    90% {
-        transform: translate(1px, 2px) rotate(0deg);
-    }
-
-    100% {
-        transform: translate(1px, -2px) rotate(-1deg);
-    }
-}
-
-@keyframes landSuccess {
-    0% {
-        transform: scale(0.8);
-    }
-
-    50% {
-        transform: scale(1.2);
-    }
-
-    100% {
-        transform: scale(1);
-    }
-}
-
-@keyframes landError {
-    0% {
-        transform: rotate(0deg) scale(1);
-    }
-
-    20% {
-        transform: rotate(-10deg);
-    }
-
-    40% {
-        transform: rotate(10deg);
-    }
-
-    60% {
-        transform: rotate(-10deg);
-    }
-
-    80% {
-        transform: rotate(10deg);
-    }
-
-    100% {
-        transform: rotate(0deg) scale(1);
-    }
-}
-
-@keyframes pulseGlow {
-
-    0%,
-    100% {
-        transform: scale(1);
-        opacity: 0.5;
-    }
-
-    50% {
-        transform: scale(1.2);
-        opacity: 0.8;
-    }
-}
-
-@keyframes pulseFast {
-
-    0%,
-    100% {
-        transform: scale(1);
-        opacity: 0.6;
-    }
-
-    50% {
-        transform: scale(1.3);
-        opacity: 0.9;
-    }
-}
-
-@keyframes slideUp {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-@keyframes progressMove {
-    0% {
-        left: -50%;
-        width: 30%;
-    }
-
-    50% {
-        left: 20%;
-        width: 60%;
-    }
-
-    100% {
-        left: 100%;
-        width: 30%;
-    }
-}
-
-@keyframes floatParticle {
-    0% {
-        transform: translateY(0) scale(0);
-        opacity: 0;
-    }
-
-    50% {
-        opacity: 0.9;
-    }
-
-    100% {
-        transform: translateY(-50px) scale(1);
-        opacity: 0;
-    }
-}
-
-.minimizeBtn {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.6);
-    cursor: pointer;
-    transition: color 0.3s ease, transform 0.3s ease;
-    z-index: 10000;
-}
-
-.minimizeBtn:hover {
-    color: #ffffff;
-    transform: scale(1.1);
-}
-
-.minimizing {
-    animation: minimizeAnimation 0.5s ease-in-out forwards;
-}
-
-@keyframes minimizeAnimation {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-
-    100% {
-        transform: scale(0.1) translate(400px, -400px);
-        opacity: 0;
-    }
-}
-
-/* Minimized Notification Styles */
+/* ── Minimized notification (toast-style) ──────────────── */
 .notification {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 320px;
-    height: 80px;
-    background-color: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    padding: 0 15px;
-    gap: 15px;
-    z-index: 9999;
-    cursor: pointer;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    animation: slideInNotification 0.5s ease-out;
-    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-    backdrop-filter: blur(10px);
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  animation: slideIn 0.3s var(--ease-out-expo);
 }
 
 .notification:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.3);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  background: var(--bg-tertiary);
+  transform: translateY(-2px);
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .notificationD20 {
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-}
-
-.notificationContent {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-    overflow: hidden;
-}
-
-.notificationTitle {
-    color: #e0e0e0;
-    font-family: var(--font-main, sans-serif);
-    font-size: 0.85rem;
-    font-weight: 500;
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    letter-spacing: 0.5px;
-}
-
-.notificationProgress {
-    width: 100%;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.notificationProgressFill {
-    height: 100%;
-    background: var(--accent-primary, #4a9eff);
-    border-radius: 2px;
-    transition: width 0.3s ease;
-    box-shadow: 0 0 8px var(--accent-glow, rgba(74, 158, 255, 0.4));
-}
-
-.maximizeHint {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    background: var(--accent-primary, #4a9eff);
-    color: white;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.notification:hover .maximizeHint {
-    opacity: 1;
-}
-
-@keyframes slideInNotification {
-    from {
-        transform: translateY(100px);
-        opacity: 0;
-    }
-
-    to {
-        opacity: 0.8;
-    }
-}
-
-@keyframes pulseFast {
-
-    0%,
-    100% {
-        transform: scale(1);
-        opacity: 0.6;
-    }
-
-    50% {
-        transform: scale(1.3);
-        opacity: 0.9;
-    }
-}
-
-@keyframes slideUp {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-@keyframes progressMove {
-    0% {
-        left: -50%;
-        width: 30%;
-    }
-
-    50% {
-        left: 20%;
-        width: 60%;
-    }
-
-    100% {
-        left: 100%;
-        width: 30%;
-    }
-}
-
-@keyframes floatParticle {
-    0% {
-        transform: translateY(0) scale(0);
-        opacity: 0;
-    }
-
-    50% {
-        opacity: 0.9;
-    }
-
-    100% {
-        transform: translateY(-50px) scale(1);
-        opacity: 0;
-    }
-}
-
-.minimizeBtn {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.6);
-    cursor: pointer;
-    transition: color 0.3s ease, transform 0.3s ease;
-    z-index: 10000;
-}
-
-.minimizeBtn:hover {
-    color: #ffffff;
-    transform: scale(1.1);
-}
-
-.minimizing {
-    animation: minimizeAnimation 0.5s ease-in-out forwards;
-}
-
-@keyframes minimizeAnimation {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-
-    100% {
-        transform: scale(0.1) translate(400px, -400px);
-        opacity: 0;
-    }
-}
-
-/* Minimized Notification Styles */
-.notification {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 320px;
-    height: 80px;
-    background-color: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    padding: 0 15px;
-    gap: 15px;
-    z-index: 9999;
-    cursor: pointer;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    animation: slideInNotification 0.5s ease-out;
-    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-    backdrop-filter: blur(10px);
-}
-
-.notification:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.3);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-}
-
-.notificationD20 {
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-}
-
-.notificationContent {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-    overflow: hidden;
-}
-
-.notificationTitle {
-    color: #e0e0e0;
-    font-family: var(--font-main, sans-serif);
-    font-size: 0.85rem;
-    font-weight: 500;
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    letter-spacing: 0.5px;
-}
-
-.notificationProgress {
-    width: 100%;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.notificationProgressFill {
-    height: 100%;
-    background: var(--accent-primary, #4a9eff);
-    border-radius: 2px;
-    transition: width 0.3s ease;
-    box-shadow: 0 0 8px var(--accent-glow, rgba(74, 158, 255, 0.4));
-}
-
-.maximizeHint {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    background: var(--accent-primary, #4a9eff);
-    color: white;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.notification:hover .maximizeHint {
-    opacity: 1;
-}
-
-@keyframes slideInNotification {
-    from {
-        transform: translateY(100px);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
 .notificationD20 .d20Svg {
-    animation: pokeballShake 2s infinite ease-in-out;
-    transform-origin: bottom center;
+  width: 28px;
+  height: 28px;
+  animation: d20Spin 2s linear infinite;
 }
 
-@keyframes pokeballShake {
-    0% {
-        transform: rotate(0deg);
-    }
+.notificationContent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-    10% {
-        transform: rotate(-15deg);
-    }
+.notificationTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+}
 
-    20% {
-        transform: rotate(15deg);
-    }
+.notificationProgress {
+  width: 120px;
+  height: 3px;
+  background: var(--fill);
+  border-radius: 2px;
+  overflow: hidden;
+}
 
-    30% {
-        transform: rotate(-10deg);
-    }
+.notificationProgressFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease-out;
+}
 
-    40% {
-        transform: rotate(10deg);
-    }
-
-    50% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(0deg);
-    }
+.maximizeHint {
+  color: var(--text-tertiary);
+  opacity: 0.5;
+  flex-shrink: 0;
 }

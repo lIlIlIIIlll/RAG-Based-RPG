@@ -11,7 +11,17 @@ const app = express();
 // --- Middlewares Essenciais ---
 
 // Habilita CORS para permitir requisições de diferentes origens
-app.use(cors());
+app.use(
+  cors({
+    origin: "*", // Permitir todas as origens (para desenvolvimento/ngrok)
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "ngrok-skip-browser-warning",
+    ],
+  }),
+);
 
 // Habilita o parsing de JSON no corpo das requisições
 // Habilita o parsing de JSON no corpo das requisições com limite aumentado

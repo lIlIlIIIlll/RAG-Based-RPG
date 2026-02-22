@@ -40,6 +40,13 @@ router.delete("/message/:chatToken/:messageid", chatController.deleteMessage);
 // POST /api/chat/:chatToken/memories/delete
 router.post("/:chatToken/memories/delete", chatController.deleteMemories);
 
+// Alternar memória eterna (pin/unpin)
+// PUT /api/chat/:chatToken/memories/:messageid/eternal
+router.put(
+  "/:chatToken/memories/:messageid/eternal",
+  chatController.toggleEternalMemory,
+);
+
 // Obter estatísticas de memórias
 // GET /api/chat/:chatToken/memories/stats
 router.get("/:chatToken/memories/stats", chatController.getMemoryStats);
@@ -56,15 +63,12 @@ router.post("/:chatToken/memories/import", chatController.importMemories);
 // POST /api/chat/search/:chatToken/:collectionName
 router.post(
   "/search/:chatToken/:collectionName",
-  chatController.searchMessages
+  chatController.searchMessages,
 );
 
 // Inserir mensagem/memória
 // POST /api/chat/insert/:chatToken/:collectionName
-router.post(
-  "/insert/:chatToken/:collectionName",
-  chatController.addMessage
-);
+router.post("/insert/:chatToken/:collectionName", chatController.addMessage);
 
 // Branch Chat
 // POST /api/chat/:chatToken/message/:messageId/branch
@@ -75,7 +79,7 @@ router.post("/:chatToken/message/:messageId/branch", chatController.branchChat);
 router.post(
   "/generate/:chatToken",
   upload.array("files"),
-  chatController.generateChatResponse
+  chatController.generateChatResponse,
 );
 
 // --- Rotas de Chat (Detalhes/Config/Histórico) ---
@@ -104,11 +108,17 @@ router.post("/:chatToken/vectorize-pdf", chatController.vectorizePDF);
 
 // Listar documentos vetorizados em uma collection
 // GET /api/chat/:chatToken/documents/:collection
-router.get("/:chatToken/documents/:collection", chatController.listVectorizedDocuments);
+router.get(
+  "/:chatToken/documents/:collection",
+  chatController.listVectorizedDocuments,
+);
 
 // Deletar documento vetorizado (todos os chunks)
 // DELETE /api/chat/:chatToken/documents/:collection/:documentId
-router.delete("/:chatToken/documents/:collection/:documentId", chatController.deleteVectorizedDocument);
+router.delete(
+  "/:chatToken/documents/:collection/:documentId",
+  chatController.deleteVectorizedDocument,
+);
 
 // Verificar embeddings zerados (conta quantos precisam de reparo)
 // GET /api/chat/:chatToken/check-embeddings

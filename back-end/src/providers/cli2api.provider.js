@@ -113,7 +113,7 @@ async function generateChatResponse(
           },
           body: JSON.stringify(body),
         }),
-        120000, // 120s timeout
+        300000, // 300s timeout (5min - modelos "thinking" podem demorar ~3min)
       );
       return response;
     };
@@ -277,6 +277,7 @@ Analise o histórico e gere UMA ÚNICA query de busca que:
 3. **INCLUA** elementos que conectem a cena atual com eventos passados relevantes
 4. **ANTECIPE** informações úteis para possíveis desdobramentos da cena
 5. **EVITE** repetir informações que já estão nas memórias recuperadas anteriormente
+6. **BUSQUE** por informações sobre a personalidade e aparência dos personagens na cena, para que o mestre tenha um maior contexto deles.
 
 ### FORMATO DE SAÍDA ###
 Responda APENAS com a query, sem explicações ou formatação.
@@ -287,7 +288,9 @@ Tamanho ideal: 50-150 palavras.
 "Informações sobre a taverna Dragão Adormecido e seu dono Bartolomeu, incluindo eventos passados que aconteceram neste local, NPCs que frequentam o estabelecimento, rumores ouvidos aqui anteriormente, e qualquer conexão com a guilda de ladrões mencionada pelo jogador. Contexto sobre o sistema monetário local e preços típicos de bebidas e quartos."`;
 
   try {
-    console.log(`[CLI2API] Gerando query de busca com Gemini 3 Pro...`);
+    console.log(
+      `[CLI2API] Gerando query de busca... URL: ${apiUrl} | Modelo: gemini-3-flash-preview`,
+    );
 
     const response = await withTimeout(
       fetch(apiUrl, {
@@ -297,7 +300,7 @@ Tamanho ideal: 50-150 palavras.
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-3-pro-high",
+          model: "gemini-3-flash-preview",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.3, // Baixa temperatura para queries consistentes
           max_tokens: 500,
@@ -326,7 +329,9 @@ Tamanho ideal: 50-150 palavras.
 
     return query;
   } catch (error) {
-    console.error(`[CLI2API] Erro ao gerar query de busca: ${error.message}`);
+    console.error(
+      `[CLI2API] ✗ Erro ao gerar query de busca (URL: ${apiUrl}): ${error.message}`,
+    );
 
     // Fallback: usa as últimas mensagens do histórico como query
     const lines = historyText.split("\n").filter((l) => l.trim());
@@ -338,93 +343,303 @@ Tamanho ideal: 50-150 palavras.
 }
 
 /**
- * Gera um contexto sintetizado a partir de memórias brutas + histórico recente.
- * Two-stage RAG: transforma fragmentos de memória em um briefing coeso para o Mestre.
+ * Gera um contexto sintetizado usando um loop agêntico com tool calling.
+ * O LLM analisa sessão + memórias e pode buscar mais informações no banco vetorial
+ * usando a tool `search_memories` quantas vezes precisar antes de produzir o briefing final.
  *
- * @param {string} historyText - Histórico recente da conversa.
+ * @param {string} sessionMessagesText - Todas as mensagens da sessão atual.
  * @param {string} memoriesText - Memórias brutas recuperadas do RAG.
- * @param {object} options - { baseUrl, apiKey }
+ * @param {string} originalQuery - A query original usada para buscar as memórias iniciais.
+ * @param {object} options - { baseUrl, apiKey, searchFn }
+ * @param {Function} options.searchFn - Callback async (query: string) => string — executa busca vetorial e retorna resultados formatados.
  * @returns {Promise<string>} Contexto sintetizado.
  */
-async function generateContextSummary(historyText, memoriesText, options = {}) {
+async function generateContextSummary(
+  sessionMessagesText,
+  memoriesText,
+  originalQuery,
+  options = {},
+) {
   const baseUrl = options.baseUrl || "http://localhost:8317";
   const apiKey = options.apiKey || "batata";
+  const searchFn = options.searchFn || null;
+  const eternalMemoriesText = options.eternalMemoriesText || "";
   const apiUrl = `${baseUrl}/v1/chat/completions`;
 
-  const prompt = `### SUA FUNÇÃO ###
-Você é um assistente de memória para um Mestre de RPG. Sua tarefa é analisar memórias recuperadas de um banco de dados e criar um BRIEFING CONTEXTUALIZADO que o Mestre usará para narrar a cena atual.
+  const MAX_AGENT_ITERATIONS = 4;
 
-### HISTÓRICO RECENTE DA CONVERSA ###
-${historyText}
+  // Cadeia de fallback: gemini-3.1-pro-high → gemini-3.1-pro-low → gemini-3-flash
+  const MODEL_CHAIN = [
+    "gemini-3.1-pro-high-preview",
+    "gemini-3.1-pro-low-preview",
+    "gemini-3-flash-preview",
+  ];
 
-### MEMÓRIAS RECUPERADAS (BRUTAS) ###
+  // Tool definition para busca vetorial
+  const searchTool = {
+    type: "function",
+    function: {
+      name: "search_memories",
+      description:
+        "Busca informações adicionais no banco de dados vetorial de memórias do RPG. " +
+        "Use esta ferramenta quando identificar que faltam informações sobre NPCs, locais, " +
+        "eventos, lore, inventário ou qualquer outro elemento mencionado na sessão ou nas memórias " +
+        "que precisa de mais contexto. Você pode chamar esta ferramenta múltiplas vezes.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "Query de busca em linguagem natural. Descreva o que você quer saber. " +
+              "Exemplo: 'Quem é o NPC Bartolomeu e qual sua relação com os jogadores?' " +
+              "ou 'Informações sobre a cidade de Eldoria e seus pontos de interesse'.",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  };
+
+  const systemPrompt = `### SUA FUNÇÃO ###
+Você é o analista de contexto de uma IA narradora de RPG. Sua tarefa é analisar a situação atual da sessão de jogo junto com memórias recuperadas de um banco de dados vetorial, e sintetizar um BRIEFING CONTEXTUALIZADO que a IA narradora usará para gerar a próxima resposta.
+
+### FERRAMENTA DISPONÍVEL ###
+Você tem acesso à ferramenta **search_memories** que permite buscar informações adicionais no banco de dados de memórias do RPG. O banco contém 3 coleções:
+- **histórico**: Mensagens de sessões anteriores
+- **fatos**: Eventos concretos, inventário, NPCs, acontecimentos
+- **conceitos**: Lore, magia, cultura, regras do mundo
+
+A query original utilizada para recuperar as memórias iniciais foi: "${originalQuery}"
+
+### QUANDO USAR A FERRAMENTA ###
+- Quando identificar NPCs na cena mas não tiver informações suficientes sobre eles
+- Quando um local é mencionado mas não há detalhes sobre ele nas memórias
+- Quando eventos passados são referenciados mas não há contexto completo
+- Quando precisar de informações sobre inventário, habilidades ou estado dos personagens
+- Quando a lore ou regras do mundo são relevantes para a cena mas não foram recuperadas
+- Sempre que sentir que o briefing ficaria incompleto sem mais informações
+
+### INSTRUÇÕES ###
+1. Analise as mensagens da sessão e as memórias recuperadas
+2. Se houver MEMÓRIAS PERMANENTES, elas são informações absolutas que DEVEM constar no briefing — nunca as ignore
+3. Identifique LACUNAS — elementos mencionados na cena que precisam de mais contexto
+4. Use a ferramenta search_memories para preencher essas lacunas (quantas vezes precisar)
+5. Quando tiver informação suficiente, produza o briefing final
+
+### FORMATO DO BRIEFING FINAL ###
+Escreva em parágrafos corridos, como um briefing denso e informativo.
+NÃO use listas ou bullet points.
+NÃO invente informações — se algo não foi encontrado nem nas memórias nem nas buscas, diga explicitamente que a informação não está disponível.
+NÃO dê opiniões, sugestões ou guie a narrativa.
+NÃO descreva emoções ou carga emocional.
+Seja FACTUAL e OBJETIVO. Seu trabalho é dar contexto, não narrar.`;
+
+  const eternalSection =
+    eternalMemoriesText.length > 0
+      ? `\n\n### MEMÓRIAS PERMANENTES (NUNCA IGNORAR — estas informações foram fixadas pelo usuário e DEVEM constar no briefing) ###\n${eternalMemoriesText}\n`
+      : "";
+
+  const userMessage = `### MENSAGENS DA SESSÃO ATUAL ###
+${sessionMessagesText}
+${eternalSection}
+### MEMÓRIAS RECUPERADAS DO BANCO DE DADOS (Divididas em: mensagens de sessões anteriores, fatos salvos e conceitos salvos) ###
 ${memoriesText}
 
-### SUA TAREFA ###
-Crie um texto explicativo e coeso que:
-1. **CONECTE** as memórias relevantes ao contexto atual da cena
-2. **DESTAQUE** informações que o Mestre PRECISA saber agora (NPCs envolvidos, eventos passados relevantes, lore aplicável)
-3. **OMITA** memórias que não têm relação com a situação atual
-4. **SINTETIZE** informações redundantes em uma única menção
-5. **PRIORIZE** fatos sobre o estado atual das coisas (quem está vivo/morto, relações atuais, inventário)
+Analise as informações acima, identifique lacunas e use a ferramenta search_memories se necessário. Quando tiver contexto suficiente, produza o briefing final.`;
 
-### FORMATO DE SAÍDA ###
-Escreva em parágrafos corridos, como um briefing para o Mestre. Use negrito para nomes de NPCs e locais importantes.
-NÃO use listas ou bullet points.
-NÃO repita informações do histórico recente (o Mestre já sabe o que acabou de acontecer).
-NÃO invente informações - use APENAS o que está nas memórias recuperadas.
-NÃO descreva a carga emocional de nada.
-NÃO guie o mestre para uma decisão.
+  // Tenta cada modelo da cadeia de fallback
+  for (let modelIdx = 0; modelIdx < MODEL_CHAIN.length; modelIdx++) {
+    const model = MODEL_CHAIN[modelIdx];
+    const isLastModel = modelIdx === MODEL_CHAIN.length - 1;
 
-O trabalho do seu briefing é PURAMENTE INFORMACIONAL, você apenas explica o contexto para que o mestre possa tomar suas próprias decisões.`;
+    try {
+      console.log(
+        `[CLI2API-Agent] Iniciando contextualização agêntica | Modelo: ${model}${modelIdx > 0 ? ` (fallback ${modelIdx})` : ""}`,
+      );
 
-  try {
-    console.log(`[CLI2API] Gerando síntese de contexto com Gemini 3 Pro...`);
+      // Conversation state para o loop agêntico
+      const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ];
 
-    const response = await withTimeout(
-      fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gemini-3-pro-high",
-          messages: [{ role: "user", content: prompt }],
+      let iteration = 0;
+
+      while (iteration < MAX_AGENT_ITERATIONS) {
+        iteration++;
+
+        const requestBody = {
+          model,
+          messages,
           temperature: 0.3,
-          max_tokens: 2000,
+          max_tokens: 3000,
+        };
+
+        // Só adiciona tools se a searchFn estiver disponível
+        if (searchFn) {
+          requestBody.tools = [searchTool];
+        }
+
+        console.log(
+          `[CLI2API-Agent] Iteração ${iteration}/${MAX_AGENT_ITERATIONS}...`,
+        );
+
+        const response = await withTimeout(
+          fetch(apiUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+          }),
+          60000,
+        );
+
+        if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`CLI2API error (${response.status}): ${errorData}`);
+        }
+
+        const data = await response.json();
+        const choice = data.choices?.[0];
+
+        if (!choice) {
+          throw new Error("CLI2API retornou resposta vazia.");
+        }
+
+        const assistantMessage = choice.message;
+
+        // Adiciona a resposta do assistant ao histórico da conversa
+        messages.push(assistantMessage);
+
+        // Verifica se há tool calls
+        if (
+          assistantMessage.tool_calls &&
+          assistantMessage.tool_calls.length > 0
+        ) {
+          // Processa cada tool call
+          for (const toolCall of assistantMessage.tool_calls) {
+            if (toolCall.function.name === "search_memories" && searchFn) {
+              let args;
+              try {
+                args = JSON.parse(toolCall.function.arguments || "{}");
+              } catch {
+                args = { query: "" };
+              }
+
+              const query = args.query || "";
+              console.log(
+                `[CLI2API-Agent] Tool call: search_memories("${query.substring(0, 100)}${query.length > 100 ? "..." : ""}")`,
+              );
+
+              try {
+                const searchResults = await searchFn(query);
+                console.log(
+                  `[CLI2API-Agent] Busca retornou ${searchResults.length} chars de resultados`,
+                );
+
+                messages.push({
+                  role: "tool",
+                  tool_call_id: toolCall.id,
+                  content:
+                    searchResults ||
+                    "Nenhum resultado encontrado para esta busca.",
+                });
+              } catch (searchError) {
+                console.error(
+                  `[CLI2API-Agent] Erro na busca: ${searchError.message}`,
+                );
+                messages.push({
+                  role: "tool",
+                  tool_call_id: toolCall.id,
+                  content: `Erro ao buscar: ${searchError.message}. Prossiga com as informações disponíveis.`,
+                });
+              }
+            }
+          }
+
+          // Continua o loop para o LLM processar os resultados
+          continue;
+        }
+
+        // Sem tool calls — o LLM produziu o briefing final
+        const synthesis = assistantMessage.content?.trim() || "";
+
+        if (!synthesis) {
+          throw new Error("CLI2API retornou síntese vazia.");
+        }
+
+        console.log(`[CLI2API-Agent] ═══ CONTEXTO SINTETIZADO (${model}) ═══`);
+        console.log(
+          `  ${synthesis.substring(0, 300)}${synthesis.length > 300 ? "..." : ""}`,
+        );
+        console.log(
+          `  (${synthesis.length} chars | ${iteration} iteração(ões))`,
+        );
+
+        return synthesis;
+      }
+
+      // Atingiu o limite de iterações — extrai o que tiver
+      console.warn(
+        `[CLI2API-Agent] Limite de ${MAX_AGENT_ITERATIONS} iterações atingido. Forçando briefing final.`,
+      );
+
+      // Faz uma última chamada sem tools para forçar uma resposta textual
+      messages.push({
+        role: "user",
+        content:
+          "Você atingiu o limite de buscas. Produza o briefing final AGORA com as informações que você já coletou.",
+      });
+
+      const finalResponse = await withTimeout(
+        fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.3,
+            max_tokens: 3000,
+          }),
         }),
-      }),
-      45000, // 45s timeout
-    );
+        60000,
+      );
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`CLI2API error (${response.status}): ${errorData}`);
+      if (finalResponse.ok) {
+        const finalData = await finalResponse.json();
+        const finalSynthesis =
+          finalData.choices?.[0]?.message?.content?.trim() || "";
+        if (finalSynthesis) {
+          console.log(`[CLI2API-Agent] ═══ CONTEXTO (forçado após limite) ═══`);
+          console.log(`  (${finalSynthesis.length} chars)`);
+          return finalSynthesis;
+        }
+      }
+
+      throw new Error("Falha ao obter briefing final após limite de iterações");
+    } catch (error) {
+      console.error(
+        `[CLI2API-Agent] ✗ Erro com modelo ${model}: ${error.message}`,
+      );
+
+      if (isLastModel) {
+        console.warn(
+          `[CLI2API-Agent] Todos os modelos falharam. Usando fallback: memórias brutas.`,
+        );
+        return memoriesText;
+      }
+
+      console.warn(`[CLI2API-Agent] Tentando próximo modelo da cadeia...`);
     }
-
-    const data = await response.json();
-    const synthesis = data.choices?.[0]?.message?.content?.trim() || "";
-
-    if (!synthesis) {
-      throw new Error("CLI2API retornou síntese vazia.");
-    }
-
-    console.log(`[CLI2API] ═══ CONTEXTO SINTETIZADO ═══`);
-    console.log(
-      `  ${synthesis.substring(0, 300)}${synthesis.length > 300 ? "..." : ""}`,
-    );
-    console.log(`  (${synthesis.length} chars)`);
-
-    return synthesis;
-  } catch (error) {
-    console.error(
-      `[CLI2API] Erro ao gerar síntese de contexto: ${error.message}`,
-    );
-    // Fallback: retorna memórias brutas
-    console.warn(`[CLI2API] Usando fallback: memórias brutas.`);
-    return memoriesText;
   }
+
+  return memoriesText;
 }
 
 /**
@@ -466,7 +681,7 @@ FOQUE em informações que serão úteis para lembrar em sessões futuras.`;
 
   try {
     console.log(
-      `[CLI2API] Gerando resumo da sessão ${sessionId} com Gemini 3 Pro...`,
+      `[CLI2API] Gerando resumo da sessão ${sessionId}... URL: ${apiUrl} | Modelo: gemini-3-flash-preview`,
     );
 
     const response = await withTimeout(
@@ -477,7 +692,7 @@ FOQUE em informações que serão úteis para lembrar em sessões futuras.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-3-pro-high",
+          model: "gemini-3-flash-preview",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.2,
           max_tokens: 500,
@@ -503,7 +718,9 @@ FOQUE em informações que serão úteis para lembrar em sessões futuras.`;
 
     return summary;
   } catch (error) {
-    console.error(`[CLI2API] Erro ao gerar resumo da sessão: ${error.message}`);
+    console.error(
+      `[CLI2API] ✗ Erro ao gerar resumo da sessão (URL: ${apiUrl}): ${error.message}`,
+    );
     return `${sessionId}: Resumo não disponível (erro na geração).`;
   }
 }
@@ -539,7 +756,9 @@ Um ou dois parágrafos corridos, sem bullet points ou listas.
 Comece diretamente com os eventos, sem introdução.`;
 
   try {
-    console.log(`[CLI2API] Gerando resumo "Previously On" com Gemini 3 Pro...`);
+    console.log(
+      `[CLI2API] Gerando resumo "Previously On"... URL: ${apiUrl} | Modelo: gemini-3-flash-preview`,
+    );
 
     const response = await withTimeout(
       fetch(apiUrl, {
@@ -549,7 +768,7 @@ Comece diretamente com os eventos, sem introdução.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-3-pro-high",
+          model: "gemini-3-flash-preview",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.4,
           max_tokens: 400,
@@ -577,7 +796,9 @@ Comece diretamente com os eventos, sem introdução.`;
 
     return summary;
   } catch (error) {
-    console.error(`[CLI2API] Erro ao gerar Previously On: ${error.message}`);
+    console.error(
+      `[CLI2API] ✗ Erro ao gerar Previously On (URL: ${apiUrl}): ${error.message}`,
+    );
     return ""; // Retorna vazio para não bloquear o fluxo
   }
 }

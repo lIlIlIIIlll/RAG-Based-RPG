@@ -11,10 +11,10 @@ import ApiKeyModal from "../config/ApiKeyModal.jsx";
 import CinematicLoading from "../ui/CinematicLoading.jsx";
 import styles from "./ChatList.module.css";
 
-const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
+const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating, collapsed, onToggleCollapse, sidebarRef, isDragOpen }) => {
+  const showContent = !collapsed || isDragOpen;
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [pendingImportMessages, setPendingImportMessages] = useState([]);
@@ -366,10 +366,10 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
 
   return (
     <>
-      <div className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""} `}>
+      <div ref={sidebarRef} className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""} `}>
         <button
           className={styles.collapseBtn}
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={onToggleCollapse}
           title={collapsed ? "Expandir Sidebar" : "Colapsar Sidebar"}
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -383,9 +383,9 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
               disabled={isCreating}
             >
               <Plus size={18} />
-              {!collapsed && <span>{isCreating ? "Criando..." : "Nova Campanha"}</span>}
+              {showContent && <span>{isCreating ? "Criando..." : "Nova Campanha"}</span>}
             </button>
-            {!collapsed && (
+            {showContent && (
               <button
                 className={styles.importBtn}
                 onClick={handleImportClick}
@@ -405,7 +405,7 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
         </div>
 
         {/* Search and Sort - only when expanded */}
-        {!collapsed && (
+        {showContent && (
           <div className={styles.searchSortContainer}>
             <div className={styles.searchBox}>
               <Search size={14} />
@@ -436,7 +436,7 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
             <div className={styles.loading}>Carregando...</div>
           ) : filteredAndSortedChats.length === 0 ? (
             <div className={styles.emptyState}>
-              {!collapsed && (searchTerm ? "Nenhuma campanha encontrada." : "Nenhum chat encontrado.")}
+              {showContent && (searchTerm ? "Nenhuma campanha encontrada." : "Nenhum chat encontrado.")}
             </div>
           ) : (
             filteredAndSortedChats.map((chat) => (
@@ -447,7 +447,7 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
               >
                 <MessageSquare size={18} className={styles.icon} />
 
-                {!collapsed && (
+                {showContent && (
                   <div className={styles.info}>
                     {editingChatId === chat.id ? (
                       <div className={styles.editContainer} onClick={(e) => e.stopPropagation()}>
@@ -478,7 +478,7 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
                   </div>
                 )}
 
-                {!collapsed && editingChatId !== chat.id && (
+                {showContent && editingChatId !== chat.id && (
                   <div className={styles.actions}>
                     <button
                       className={styles.actionBtn}
@@ -519,7 +519,7 @@ const ChatList = ({ onSelectChat, activeChatToken, onNewChat, isCreating }) => {
             title="Sair"
           >
             <LogOut size={20} />
-            {!collapsed && <span>Sair</span>}
+            {showContent && <span>Sair</span>}
           </button>
         </div>
       </div>

@@ -166,6 +166,7 @@ async function addMessage(req, res, next) {
       collectionName,
       text,
       role || "user",
+      `manual_${Date.now()}`, // sessionId
       [], // attachments
       apiKeys, // API keys para embedding
       null, // thoughtSignature
@@ -623,6 +624,32 @@ async function checkEmbeddings(req, res, next) {
   }
 }
 
+// [PUT] /api/chat/:chatToken/memories/:messageid/eternal
+async function toggleEternalMemory(req, res, next) {
+  try {
+    const { chatToken, messageid } = req.params;
+    const lanceDBService = require("../../database/lancedb.service");
+
+    const result = await lanceDBService.toggleEternalMemory(
+      chatToken,
+      messageid,
+    );
+
+    if (!result.toggled) {
+      return res.status(404).json({ error: "Memória não encontrada." });
+    }
+
+    res.status(200).json({
+      message: result.eternal
+        ? "Memória marcada como eterna."
+        : "Memória desmarcada como eterna.",
+      eternal: result.eternal,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getAllChats,
   getChatDetails,
@@ -648,4 +675,5 @@ module.exports = {
   deleteVectorizedDocument,
   checkEmbeddings,
   repairEmbeddings,
+  toggleEternalMemory,
 };

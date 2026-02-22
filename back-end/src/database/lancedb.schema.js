@@ -36,6 +36,9 @@ const chatMessageSchema = new Schema([
 
   // Campo para rastreamento de sessões (~30k tokens por sessão)
   new Field("sessionId", new Utf8(), true), // Ex: "session_1", "session_2"
+
+  // Campo para memórias eternas (nunca esquecidas, sempre injetadas no contexto)
+  new Field("eternal", new Utf8(), true), // "true" ou null
 ]);
 
 module.exports = { chatMessageSchema };

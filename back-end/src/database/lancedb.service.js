@@ -209,6 +209,7 @@ async function updateRecordByMessageId(
       }
 
       const table = await db.openTable(tableName);
+      await ensureEternalColumn(table);
 
       // First, let's check all records to see if the messageid exists at all
       // IMPORTANT: Trim both sides to handle records saved with trailing spaces
@@ -255,6 +256,7 @@ async function updateRecordByMessageId(
             accessCount: oldRecord.accessCount ?? null,
             lastMessageAccessed: oldRecord.lastMessageAccessed ?? null,
             sessionId: oldRecord.sessionId ?? null,
+            eternal: oldRecord.eternal ?? null,
           },
         ]);
         console.log(`[LanceDB] ✓ Atualização concluída em ${tableName}.`);
@@ -384,6 +386,149 @@ async function searchAcrossChats(
 
   const allResults = await Promise.all(searchPromises);
   return allResults.flat();
+}
+
+// ============================================
+// ETERNAL MEMORIES
+// ============================================
+
+/**
+ * Retorna todas as memórias marcadas como eternas (fatos + conceitos).
+ * @param {string} chatToken
+ * @returns {Promise<object[]>}
+ */
+async function getEternalMemories(chatToken) {
+  const db = await getDbConnection();
+  const eternalCollections = ["fatos", "conceitos"];
+  const eternalMemories = [];
+
+  for (const collectionName of eternalCollections) {
+    const tableName = `${chatToken}-${collectionName}`;
+    try {
+      const existingTables = await db.tableNames();
+      if (!existingTables.includes(tableName)) continue;
+
+      const table = await db.openTable(tableName);
+      await ensureEternalColumn(table);
+      const allRecords = await table.query().toArray();
+
+      for (const record of allRecords) {
+        if (record.eternal === "true") {
+          eternalMemories.push({
+            ...record,
+            category: collectionName,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn(
+        `[LanceDB] Erro ao buscar memórias eternas em ${tableName}:`,
+        e.message,
+      );
+    }
+  }
+
+  console.log(
+    `[LanceDB] ${eternalMemories.length} memória(s) eterna(s) encontrada(s).`,
+  );
+  return eternalMemories;
+}
+
+/**
+ * Garante que a coluna 'eternal' existe na tabela.
+ * Tabelas criadas antes da feature de memórias eternas não possuem essa coluna.
+ * @param {object} table - Instância de tabela LanceDB já aberta
+ */
+async function ensureEternalColumn(table) {
+  const schema = await table.schema();
+  const hasEternal = schema.fields.some((f) => f.name === "eternal");
+
+  if (!hasEternal) {
+    console.log(
+      `[LanceDB] Coluna 'eternal' não encontrada em ${table.name}. Adicionando...`,
+    );
+    await table.addColumns([
+      { name: "eternal", valueSql: "CAST(NULL AS STRING)" },
+    ]);
+    console.log(`[LanceDB] Coluna 'eternal' adicionada a ${table.name}.`);
+  }
+}
+
+/**
+ * Alterna o campo eternal de uma memória (true <-> null).
+ * @param {string} chatToken
+ * @param {string} messageid
+ * @returns {Promise<{toggled: boolean, eternal: boolean}>}
+ */
+async function toggleEternalMemory(chatToken, messageid) {
+  const db = await getDbConnection();
+  const searchId = messageid.trim();
+
+  for (const collectionName of config.collectionNames) {
+    const tableName = `${chatToken}-${collectionName}`;
+    try {
+      const existingTables = await db.tableNames();
+      if (!existingTables.includes(tableName)) continue;
+
+      const table = await db.openTable(tableName);
+
+      // Migração: garante que a coluna 'eternal' existe na tabela
+      await ensureEternalColumn(table);
+
+      const allRecords = await table.query().toArray();
+      const record = allRecords.find((r) => r.messageid?.trim() === searchId);
+
+      if (record) {
+        const newEternal = record.eternal === "true" ? null : "true";
+
+        // Reconstrói o registro com apenas campos do schema
+        // (spread de Arrow records inclui metadados internos como vector.isValid)
+        const cleanRecord = {
+          text: record.text,
+          vector: Array.from(record.vector),
+          messageid: record.messageid,
+          role: record.role ?? null,
+          createdAt: record.createdAt ?? Date.now(),
+          attachments: record.attachments ?? null,
+          thoughtSignature: record.thoughtSignature ?? null,
+          accessCount: record.accessCount ?? null,
+          lastMessageAccessed: record.lastMessageAccessed ?? null,
+          sessionId: record.sessionId ?? null,
+          eternal: newEternal,
+        };
+
+        await table.delete(`messageid = '${record.messageid}'`);
+        await table.optimize();
+
+        try {
+          await table.add([cleanRecord]);
+        } catch (addError) {
+          // Fallback: re-adiciona o registro original para evitar perda de dados
+          console.error(
+            `[LanceDB] Erro ao re-inserir com eternal. Restaurando registro original...`,
+            addError.message,
+          );
+          const fallbackRecord = { ...cleanRecord, eternal: null };
+          await table.add([fallbackRecord]);
+          throw addError;
+        }
+
+        console.log(
+          `[LanceDB] Memória ${searchId} marcada como eternal=${newEternal} em ${tableName}.`,
+        );
+        return { toggled: true, eternal: newEternal === "true" };
+      }
+    } catch (e) {
+      if (!e.message?.toLowerCase().includes("was not found")) {
+        console.error(`[LanceDB] Erro ao toggle eternal em ${tableName}:`, e);
+      }
+    }
+  }
+
+  console.warn(
+    `[LanceDB] Memória ${searchId} não encontrada para toggle eternal.`,
+  );
+  return { toggled: false, eternal: false };
 }
 
 // ============================================
@@ -777,6 +922,9 @@ module.exports = {
   updateRecordByMessageId,
   deleteRecordByMessageId,
   searchAcrossChats,
+  // Eternal Memories
+  getEternalMemories,
+  toggleEternalMemory,
   // Novas funções RAG
   hybridSearch,
   reciprocalRankFusion,

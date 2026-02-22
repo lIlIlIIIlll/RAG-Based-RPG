@@ -1,22 +1,20 @@
-/* src/components/ChatList.module.css - Redesigned RPG Theme */
+/* src/components/ChatList.module.css */
 
 .sidebar {
-  width: 320px;
+  width: 300px;
   height: 100%;
-  background: linear-gradient(180deg, rgba(15, 12, 20, 0.98) 0%, rgba(5, 5, 10, 0.95) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-right: 1px solid rgba(255, 215, 0, 0.08);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--separator);
   display: flex;
   flex-direction: column;
-  transition: width 0.4s var(--ease-out-expo);
+  transition: width 0.35s var(--ease-out-expo), transform 0.35s var(--ease-out-expo);
   position: relative;
   flex-shrink: 0;
   z-index: 10;
 }
 
 .sidebar.collapsed {
-  width: 80px;
+  width: 72px;
 }
 
 /* Collapse Button */
@@ -26,31 +24,29 @@
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
-  height: 48px;
-  border-radius: 0 8px 8px 0;
-  border: 1px solid rgba(255, 215, 0, 0.15);
+  height: 44px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border: 1px solid var(--separator);
   border-left: none;
-  background: linear-gradient(135deg, rgba(20, 15, 25, 0.95) 0%, rgba(10, 10, 15, 0.9) 100%);
-  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
-  transition: all 0.3s;
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
 }
 
 .collapseBtn:hover {
-  background: rgba(255, 215, 0, 0.1);
-  color: var(--accent-primary);
-  border-color: rgba(255, 215, 0, 0.3);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
-/* Header with Branding */
+/* Header */
 .header {
-  padding: 20px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 16px 14px;
+  border-bottom: 1px solid var(--separator);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -64,66 +60,60 @@
 
 .newChatBtn {
   flex: 1;
-  height: 44px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.12) 0%, rgba(255, 140, 0, 0.08) 100%);
-  border: 1px solid rgba(255, 215, 0, 0.25);
-  border-radius: 10px;
-  color: var(--accent-primary);
+  gap: 8px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   overflow: hidden;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 
 .sidebar.collapsed .newChatBtn {
   padding: 0;
-  width: 48px;
+  width: 44px;
   flex: none;
   margin: 0 auto;
 }
 
 .newChatBtn:hover {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 140, 0, 0.15) 100%);
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 25px rgba(255, 215, 0, 0.15);
-  transform: translateY(-1px);
+  background: var(--accent-hover);
 }
 
 .newChatBtn:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
 .importBtn {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  background: var(--fill-secondary);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .importBtn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--fill);
   color: var(--text-primary);
 }
 
 /* Search and Sort */
 .searchSortContainer {
-  padding: 0 16px 16px 16px;
+  padding: 0 14px 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -133,19 +123,19 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  padding: 10px 14px;
+  gap: 8px;
+  background: var(--fill-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
   color: var(--text-secondary);
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .searchBox:focus-within {
-  border-color: rgba(255, 215, 0, 0.3);
-  background: rgba(0, 0, 0, 0.4);
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.05);
+  border-color: var(--accent);
+  background: var(--fill);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .searchInput {
@@ -155,10 +145,11 @@
   outline: none;
   color: var(--text-primary);
   font-size: 13px;
+  font-family: var(--font-main);
 }
 
 .searchInput::placeholder {
-  color: var(--text-muted);
+  color: var(--text-tertiary);
 }
 
 .searchSpinner {
@@ -167,48 +158,42 @@
 }
 
 @keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.4;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .sortSelect {
   width: 100%;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  padding: 10px 12px;
+  background: var(--fill-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
   color: var(--text-secondary);
   font-size: 12px;
+  font-family: var(--font-main);
   cursor: pointer;
   outline: none;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .sortSelect:hover,
 .sortSelect:focus {
-  border-color: rgba(255, 215, 0, 0.3);
+  border-color: var(--separator);
   color: var(--text-primary);
 }
 
 .sortSelect option {
-  background: #1a1a1a;
+  background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
 /* Section Title */
 .sectionTitle {
-  padding: 8px 16px;
-  font-size: 10px;
+  padding: 8px 14px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -219,17 +204,17 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  background: var(--separator);
 }
 
 /* Chat List Container */
 .listContainer {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 12px;
+  padding: 6px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .listContainer::-webkit-scrollbar {
@@ -237,40 +222,33 @@
 }
 
 .listContainer::-webkit-scrollbar-thumb {
-  background: rgba(255, 215, 0, 0.15);
+  background: var(--fill);
   border-radius: 2px;
 }
 
-.listContainer::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 215, 0, 0.25);
-}
-
-/* Campaign Item Card */
+/* Chat Item */
 .chatItem {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 10px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text-secondary);
-  transition: all 0.3s var(--ease-out-expo);
+  transition: all 0.2s ease;
   position: relative;
   border: 1px solid transparent;
   background: transparent;
 }
 
 .chatItem:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fill-secondary);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.05);
 }
 
 .chatItem.active {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.08) 0%, rgba(255, 140, 0, 0.03) 100%);
-  border-color: rgba(255, 215, 0, 0.2);
+  background: var(--accent-subtle);
   color: var(--text-primary);
-  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.05);
 }
 
 .chatItem.active::before {
@@ -280,19 +258,14 @@
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 60%;
-  background: linear-gradient(180deg, var(--accent-primary) 0%, rgba(255, 140, 0, 0.8) 100%);
+  height: 50%;
+  background: var(--accent);
   border-radius: 0 3px 3px 0;
-  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
 
 .sidebar.collapsed .chatItem {
   justify-content: center;
-  padding: 12px 0;
-}
-
-.sidebar.collapsed .chatItem.active {
-  border-radius: 10px;
+  padding: 10px 0;
 }
 
 .sidebar.collapsed .chatItem.active::before {
@@ -303,20 +276,20 @@
 .icon {
   flex-shrink: 0;
   opacity: 0.5;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
 .chatItem:hover .icon,
 .chatItem.active .icon {
   opacity: 1;
-  color: var(--accent-primary);
+  color: var(--accent);
 }
 
-/* Info Container */
+/* Info */
 .info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   overflow: hidden;
   flex: 1;
 }
@@ -332,16 +305,16 @@
 
 .date {
   font-size: 10px;
-  opacity: 0.4;
+  color: var(--text-tertiary);
   font-family: var(--font-mono);
 }
 
-/* Action Buttons (Edit/Delete) */
+/* Action Buttons */
 .actions {
   display: flex;
   gap: 4px;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.15s ease;
 }
 
 .chatItem:hover .actions {
@@ -353,8 +326,8 @@
 }
 
 .actionBtn {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--separator);
   color: var(--text-secondary);
   cursor: pointer;
   padding: 5px;
@@ -362,41 +335,39 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .actionBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill);
   color: var(--text-primary);
 }
 
 .deleteBtn {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--separator);
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 6px;
+  padding: 5px;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .deleteBtn:hover {
-  color: #ff6b6b;
-  border-color: rgba(255, 107, 107, 0.4);
-  background: rgba(255, 107, 107, 0.15);
-  box-shadow: 0 0 10px rgba(255, 107, 107, 0.2);
+  color: var(--danger);
+  border-color: rgba(255, 69, 58, 0.3);
+  background: rgba(255, 69, 58, 0.1);
 }
 
 /* Empty State */
 .emptyState {
   text-align: center;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
   padding: 40px 20px;
   font-size: 13px;
-  font-style: italic;
 }
 
 .loading {
@@ -408,30 +379,29 @@
 
 /* Footer */
 .footer {
-  padding: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.03);
-  background: rgba(0, 0, 0, 0.2);
+  padding: 12px 14px;
+  border-top: 1px solid var(--separator);
 }
 
 .footerBtn {
   width: 100%;
-  height: 42px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 13px;
+  font-family: var(--font-main);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
 .footerBtn:hover {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--fill-secondary);
   color: var(--text-primary);
 }
 
@@ -446,42 +416,36 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(8px);
   z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .editModalContent {
-  background: rgba(20, 20, 25, 0.95);
-  border: 1px solid rgba(255, 215, 0, 0.15);
-  border-radius: 16px;
-  padding: 24px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-lg);
+  padding: 20px;
   width: 90%;
-  max-width: 400px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: slideUp 0.3s ease-out;
+  max-width: 380px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.3s var(--ease-out-expo);
 }
 
 @keyframes slideUp {
   from {
-    transform: translateY(20px);
+    transform: translateY(16px);
     opacity: 0;
   }
-
   to {
     transform: translateY(0);
     opacity: 1;
@@ -489,62 +453,65 @@
 }
 
 .editModalContent h4 {
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   font-size: 16px;
   color: var(--text-primary);
 }
 
 .editModalContent input {
   width: 100%;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--fill-secondary);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 14px;
-  margin-bottom: 16px;
+  font-family: var(--font-main);
+  margin-bottom: 14px;
 }
 
 .editModalContent input:focus {
   outline: none;
-  border-color: var(--accent-primary);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .editModalButtons {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
 }
 
 .editModalButtons button {
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 500;
+  font-family: var(--font-main);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .editModalButtons button:first-child {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--separator);
   color: var(--text-secondary);
 }
 
 .editModalButtons button:first-child:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-secondary);
   color: var(--text-primary);
 }
 
 .editModalButtons button:last-child {
-  background: var(--accent-primary);
+  background: var(--accent);
   border: none;
-  color: #000;
+  color: #fff;
   font-weight: 600;
 }
 
 .editModalButtons button:last-child:hover {
-  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+  background: var(--accent-hover);
 }
 
 /* Responsive */
@@ -555,11 +522,15 @@
     top: 0;
     height: 100%;
     z-index: 100;
-    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
   }
 
   .sidebar.collapsed {
     transform: translateX(-100%);
-    width: 320px;
+    width: 300px;
+  }
+
+  .collapseBtn {
+    display: none;
   }
 }

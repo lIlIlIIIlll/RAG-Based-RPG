@@ -2,228 +2,81 @@
 
 .messageRow {
   display: flex;
-  gap: 20px;
+  gap: 10px;
   padding: 4px 0;
   width: 100%;
   position: relative;
-  animation: slideUp 0.4s var(--ease-out-expo);
-  transition: background-color 0.2s;
+  animation: fadeIn 0.3s ease-out;
+  transition: background-color 0.15s ease;
 }
 
 .messageRow.selectionMode {
   cursor: pointer;
-  padding-left: 10px;
-  padding-right: 10px;
-  border-radius: 12px;
+  padding-left: 8px;
+  padding-right: 8px;
+  border-radius: var(--radius-md);
 }
 
 .messageRow.selectionMode:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: var(--fill-secondary);
 }
 
 .messageRow.selected {
-  background-color: rgba(255, 215, 0, 0.05);
+  background-color: var(--accent-subtle);
 }
 
-@keyframes slideUp {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(8px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-/* Cinematic Bot Message Entrance - Magical Conjuring Effect */
-@keyframes magicConjure {
-  0% {
-    opacity: 0;
-    transform: translateY(30px) scale(0.9);
-    filter: blur(10px) brightness(2);
-  }
-
-  30% {
-    opacity: 0.7;
-    transform: translateY(10px) scale(1.02);
-    filter: blur(3px) brightness(1.5);
-  }
-
-  60% {
-    opacity: 0.9;
-    transform: translateY(-2px) scale(1);
-    filter: blur(0) brightness(1.2);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0) brightness(1);
-  }
-}
-
-@keyframes magicGlow {
-  0% {
-    box-shadow: 0 0 0 rgba(255, 215, 0, 0);
-  }
-
-  30% {
-    box-shadow: 0 0 60px rgba(255, 215, 0, 0.4), 0 0 100px rgba(255, 140, 0, 0.2);
-  }
-
-  100% {
-    box-shadow: none;
-  }
-}
-
-@keyframes textReveal {
-  0% {
-    background-position: -100% 0;
-    opacity: 1;
-  }
-
-  70% {
-    background-position: 200% 0;
-    opacity: 0.8;
-  }
-
-  100% {
-    background-position: 200% 0;
-    opacity: 0;
-  }
-}
-
-/* Adventurer/Hero Message Entrance - Swift Declaration */
-@keyframes heroSpeak {
-  0% {
-    opacity: 0;
-    transform: translateX(30px) scale(0.95);
-  }
-
-  50% {
-    opacity: 0.9;
-    transform: translateX(-5px) scale(1.01);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes inkReveal {
-  0% {
-    clip-path: inset(0 100% 0 0);
-  }
-
-  100% {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
-@keyframes borderFlash {
-  0% {
-    box-shadow: 0 0 0 rgba(200, 200, 200, 0);
-  }
-
-  30% {
-    box-shadow: 0 0 20px rgba(200, 200, 200, 0.3), inset 0 0 15px rgba(255, 255, 255, 0.05);
-  }
-
-  100% {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  }
-}
-
 .userRow {
   flex-direction: row-reverse;
-  animation: heroSpeak 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.userRow .bubble {
-  animation: borderFlash 0.8s ease-out;
-}
-
-.userRow .bubble::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.08) 50%,
-      transparent 100%);
-  background-size: 200% 100%;
-  animation: textReveal 0.6s ease-out forwards;
-  pointer-events: none;
-  border-radius: inherit;
 }
 
 .botRow {
   flex-direction: row;
-  animation: magicConjure 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.botRow .bubble {
-  animation: magicGlow 1.2s ease-out;
-}
-
-.botRow .bubble::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg,
-      transparent 0%,
-      rgba(255, 215, 0, 0.15) 50%,
-      transparent 100%);
-  background-size: 200% 100%;
-  animation: textReveal 1.2s ease-out forwards;
-  pointer-events: none;
-  border-radius: inherit;
-  opacity: 1;
-}
-
-/* Checkbox for Selection Mode */
+/* Selection Checkbox */
 .selectionCheckbox {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   flex-shrink: 0;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .userRow .selectionCheckbox {
-  margin-left: 10px;
+  margin-left: 8px;
 }
 
 .botRow .selectionCheckbox {
-  margin-right: 10px;
+  margin-right: 8px;
 }
 
 .checkboxUnchecked {
   width: 20px;
   height: 20px;
-  border: 2px solid var(--border-subtle);
+  border: 2px solid var(--separator);
   border-radius: 6px;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .checkboxChecked {
   width: 20px;
   height: 20px;
-  background-color: var(--accent-primary);
-  border: 2px solid var(--accent-primary);
+  background-color: var(--accent);
+  border: 2px solid var(--accent);
   border-radius: 6px;
   position: relative;
-  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .checkboxChecked::after {
@@ -233,46 +86,43 @@
   left: 50%;
   width: 6px;
   height: 10px;
-  border: solid #000;
+  border: solid #fff;
   border-width: 0 2px 2px 0;
   transform: translate(-50%, -60%) rotate(45deg);
 }
 
 /* Avatar */
 .avatar {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-  border-radius: 10px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #111;
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-  margin-top: 6px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border: none;
+  margin-top: 4px;
 }
 
 .userRow .avatar {
-  background: linear-gradient(135deg, #333 0%, #111 100%);
+  background: var(--accent);
+  color: #fff;
 }
 
 .botRow .avatar {
-  background: #000;
-  color: var(--accent-primary);
-  border-color: var(--border-glow);
-  box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
-/* Conteúdo */
+/* Content */
 .contentWrapper {
   display: flex;
   flex-direction: column;
-  max-width: 80%;
-  gap: 6px;
+  max-width: 75%;
+  gap: 4px;
   position: relative;
-  /* Para posicionar actions */
 }
 
 .userRow .contentWrapper {
@@ -283,35 +133,33 @@
   align-items: flex-start;
 }
 
-/* Bolha de Texto */
+/* Message Bubble */
 .bubble {
-  padding: 16px 24px;
-  border-radius: 18px;
-  font-size: 16px;
-  line-height: 1.7;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  font-size: 15px;
+  line-height: 1.6;
   color: var(--text-primary);
   position: relative;
   overflow-wrap: break-word;
-  min-width: 60px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s;
+  min-width: 48px;
+  transition: all 0.15s ease;
 }
 
 .userRow .bubble {
-  background-color: #111010;
-  border-top-right-radius: 4px;
-  border: 1px solid var(--border-subtle);
+  background-color: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
 }
 
 .botRow .bubble {
   background-color: transparent;
   border: none;
-  box-shadow: none;
   padding: 0;
 }
 
 .markdownBody p {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .markdownBody p:last-child {
@@ -319,162 +167,139 @@
 }
 
 .markdownBody code {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-secondary);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 0.9em;
-  color: #e0e0e0;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.88em;
+  color: var(--text-primary);
 }
 
 .markdownBody pre {
-  background: #0d0d0d;
-  padding: 16px;
-  border-radius: 12px;
+  background: var(--bg-secondary);
+  padding: 14px;
+  border-radius: var(--radius-md);
   overflow-x: auto;
-  margin: 16px 0;
-  border: 1px solid var(--border-subtle);
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+  margin: 12px 0;
+  border: 1px solid var(--separator);
 }
 
 .markdownBody pre code {
   background: transparent;
   padding: 0;
-  color: #ccc;
+  color: var(--text-primary);
   border: none;
 }
 
 .markdownBody ul,
 .markdownBody ol {
-  margin: 12px 0;
-  padding-left: 24px;
+  margin: 10px 0;
+  padding-left: 22px;
 }
 
 .markdownBody li {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .markdownBody strong {
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 .markdownBody h1,
 .markdownBody h2,
 .markdownBody h3 {
-  margin-top: 24px;
-  margin-bottom: 12px;
+  margin-top: 20px;
+  margin-bottom: 10px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
 }
 
-/* Área de Edição */
+/* Edit Area */
 .editContainer {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  min-width: 400px;
-  background: rgba(20, 20, 20, 0.8);
-  backdrop-filter: blur(10px);
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  animation: fadeIn 0.3s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(5px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  min-width: 300px;
+  background: var(--bg-secondary);
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--separator);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  animation: fadeIn 0.2s ease-out;
 }
 
 .editTextarea {
   width: 100%;
-  min-height: 60px;
+  min-height: 56px;
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--text-primary);
   padding: 8px;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.6;
   resize: none;
-  /* Auto-resize via JS */
   outline: none;
   overflow: hidden;
 }
 
 .editTextarea:focus {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  background: var(--fill-secondary);
+  border-radius: var(--radius-sm);
 }
 
 .editActions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--separator);
 }
 
 .saveBtn,
 .cancelBtn {
-  padding: 8px 20px;
-  border-radius: 8px;
-  font-size: 14px;
+  padding: 7px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
   cursor: pointer;
   border: none;
   font-weight: 600;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-family: var(--font-main);
+  transition: all 0.15s ease;
 }
 
 .saveBtn {
-  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-dim) 100%);
-  color: #000;
-  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.2);
-}
-
-.saveBtn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.3);
-}
-
-.cancelBtn {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.cancelBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--accent);
   color: #fff;
 }
 
-/* Menu de Ações (Floating Sticky) */
+.saveBtn:hover {
+  background: var(--accent-hover);
+}
+
+.cancelBtn {
+  background: var(--fill-secondary);
+  color: var(--text-primary);
+}
+
+.cancelBtn:hover {
+  background: var(--fill);
+}
+
+/* Action Menu */
 .actions {
   position: sticky;
   top: 0;
   align-self: flex-end;
-  /* margin-bottom removed to occupy space */
   display: flex;
-  gap: 6px;
+  gap: 4px;
   opacity: 0;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   pointer-events: none;
   z-index: 10;
   padding-bottom: 4px;
-  /* Space between actions and bubble */
 }
 
 .actions.hidden {
@@ -488,38 +313,45 @@
 }
 
 @media (max-width: 768px) {
+  .messageRow {
+    gap: 6px;
+  }
+
   .actions {
     opacity: 1;
     pointer-events: auto;
     position: relative;
     top: auto;
     margin-bottom: 0;
-    margin-top: 8px;
+    margin-top: 6px;
     justify-content: flex-end;
+  }
+
+  .contentWrapper {
+    max-width: 95%;
+  }
+
+  .avatar {
+    display: none;
   }
 }
 
 .actions button {
-  background: rgba(30, 30, 30, 0.9);
-  border: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  border: 1px solid var(--separator);
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 6px;
-  border-radius: 8px;
+  padding: 5px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  transition: all 0.15s ease;
 }
 
 .actions button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill);
   color: var(--text-primary);
-  border-color: var(--border-glow);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Attachments and Generated Images */
@@ -527,22 +359,22 @@
 .generatedImages {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .generatedImage {
   width: 200px;
   height: 200px;
   object-fit: contain;
-  background-color: #000;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--separator);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.15s ease;
 }
 
 .generatedImage:hover {
   transform: scale(1.02);
-  border-color: var(--accent-primary);
+  border-color: var(--accent);
 }

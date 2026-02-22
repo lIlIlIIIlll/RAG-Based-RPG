@@ -309,6 +309,25 @@ export const deleteMemories = async (chatToken, messageids) => {
   }
 };
 
+/**
+ * Alterna o status de memória eterna (pin/unpin).
+ * @param {string} chatToken
+ * @param {string} messageid
+ * @returns {Promise<{eternal: boolean}>}
+ */
+export const toggleEternalMemory = async (chatToken, messageid) => {
+  const CONTEXT = "API:TOGGLE_ETERNAL";
+  try {
+    const response = await apiClient.put(
+      `/chat/${chatToken}/memories/${messageid}/eternal`,
+    );
+    return response.data;
+  } catch (error) {
+    log(CONTEXT, "ERRO: Falha ao alternar memória eterna.", "error", error);
+    throw error;
+  }
+};
+
 export const branchChat = async (chatToken, messageId) => {
   const CONTEXT = "API:BRANCH_CHAT";
   try {

@@ -1,178 +1,169 @@
+/* src/components/DiceResult.module.css */
+
 .diceResultContainer {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.75rem;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(212, 160, 23, 0.2);
-    border-radius: 10px;
-    font-family: var(--font-mono);
-    min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(44, 44, 46, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin: 8px 0;
 }
 
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid rgba(212, 160, 23, 0.15);
-    padding-bottom: 0.5rem;
-    margin-bottom: 0.25rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .expression {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .total {
-    color: #ffffff;
-    font-size: 1.2rem;
-    font-weight: 700;
-    transition: all 0.3s ease;
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-primary);
 }
 
 .total.critSuccess {
-    color: var(--accent-primary);
-    text-shadow: 0 0 10px rgba(212, 160, 23, 0.5);
+  color: var(--success);
+  text-shadow: 0 0 16px rgba(48, 209, 88, 0.4);
 }
 
 .total.critFail {
-    color: #ff4444;
-    text-shadow: 0 0 10px rgba(255, 68, 68, 0.4);
+  color: var(--danger);
+  text-shadow: 0 0 16px rgba(255, 69, 58, 0.4);
 }
 
+/* Dice Row */
 .diceRow {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
-/* Base die styles */
+/* Individual Die */
 .die {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+.die:hover {
+  transform: scale(1.1);
 }
 
 .dieValue {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: #ffffff;
-    z-index: 2;
+  z-index: 2;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
-/* D4 - Triangle */
+/* Die Shapes — Matching animation colors */
 .d4 {
-    width: 32px;
-    height: 28px;
-    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-    background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  background: linear-gradient(135deg, #FF6B6B, #EE5A24);
+  clip-path: polygon(50% 5%, 5% 95%, 95% 95%);
+  width: 44px;
+  height: 42px;
 }
 
-.d4 .dieValue {
-    margin-top: 8px;
-    font-size: 0.75rem;
-}
-
-/* D6 - Square (default) */
 .d6 {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
-    border: 1px solid rgba(212, 160, 23, 0.3);
+  background: linear-gradient(135deg, #54A0FF, #2E86DE);
+  border-radius: 8px;
 }
 
-/* D8 - Diamond */
 .d8 {
-    width: 32px;
-    height: 32px;
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  background: linear-gradient(135deg, #5F27CD, #341F97);
+  clip-path: polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%);
+  width: 44px;
+  height: 44px;
 }
 
-/* D10 - Pentagon */
 .d10 {
-    width: 34px;
-    height: 36px;
-    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
-    background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  background: linear-gradient(135deg, #10AC84, #0A8C6B);
+  clip-path: polygon(50% 0%, 95% 40%, 80% 100%, 20% 100%, 5% 40%);
+  width: 44px;
+  height: 44px;
 }
 
-/* D12 - Hexagon */
 .d12 {
-    width: 36px;
-    height: 32px;
-    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  background: linear-gradient(135deg, #F368E0, #C44CC0);
+  clip-path: polygon(50% 0%, 85% 15%, 100% 50%, 85% 85%, 50% 100%, 15% 85%, 0% 50%, 15% 15%);
+  width: 46px;
+  height: 46px;
 }
 
-/* D20 - Icosahedron (hexagon) */
 .d20 {
-    width: 36px;
-    height: 36px;
-    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  background: linear-gradient(135deg, #FF9F43, #EE5A24);
+  clip-path: polygon(50% 0%, 85% 15%, 100% 50%, 85% 85%, 50% 100%, 15% 85%, 0% 50%, 15% 15%);
+  width: 48px;
+  height: 48px;
 }
 
-/* D100 - Pentagon like D10 */
 .d100 {
-    width: 38px;
-    height: 40px;
-    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
-    background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  background: linear-gradient(135deg, #FFD700, #F0A500);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
 }
 
-.d100 .dieValue {
-    font-size: 0.7rem;
-}
-
-/* Fudge Dice */
 .dF {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
-    border: 1px solid rgba(212, 160, 23, 0.3);
+  background: linear-gradient(135deg, #636e72, #2d3436);
+  border-radius: 8px;
 }
 
-/* Critical states */
-.critSuccess {
-    background: linear-gradient(135deg, rgba(212, 160, 23, 0.3) 0%, rgba(212, 160, 23, 0.15) 100%) !important;
-    box-shadow: 0 0 12px rgba(212, 160, 23, 0.5);
+/* Fudge Dice Variants */
+.dieFudge {
+  font-size: 20px;
 }
 
-.critSuccess .dieValue {
-    color: var(--accent-primary);
-    text-shadow: 0 0 8px rgba(212, 160, 23, 0.6);
+.dieFudge.plus {
+  background: linear-gradient(135deg, #10AC84, #0A8C6B);
 }
 
-.critFail {
-    background: linear-gradient(135deg, rgba(255, 68, 68, 0.2) 0%, rgba(255, 68, 68, 0.1) 100%) !important;
-    box-shadow: 0 0 8px rgba(255, 68, 68, 0.3);
+.dieFudge.minus {
+  background: linear-gradient(135deg, #FF6B6B, #EE5A24);
 }
 
-.critFail .dieValue {
-    color: #ff6666;
+.dieFudge.blank {
+  background: linear-gradient(135deg, #636e72, #4a4a4a);
 }
 
-/* Fudge states */
-.dieFudge .dieValue {
-    font-size: 1.1rem;
-    font-weight: 700;
+/* Crit States on Dice */
+.die.critSuccess {
+  box-shadow: 0 0 12px rgba(48, 209, 88, 0.5);
 }
 
-.plus .dieValue {
-    color: #4ade80;
+.die.critFail {
+  box-shadow: 0 0 12px rgba(255, 69, 58, 0.5);
 }
 
-.minus .dieValue {
-    color: #f87171;
-}
-
-.blank .dieValue {
-    color: var(--text-muted);
+/* Modifier */
+.modifier {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  align-self: center;
+  padding: 0 4px;
 }
